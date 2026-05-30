@@ -11,33 +11,36 @@ class TestMarketAnalystAgent:
     """Tests for MarketAnalystAgent."""
 
     def setup_method(self):
-        self.agent = MarketAnalystAgent()
+        # Patch the AI provider so no real API calls are made
+        with patch("services.ai_agent.agents.base.get_ai_provider") as mock_provider_factory:
+            self._mock_provider = AsyncMock()
+            self._mock_provider.extract_text = MagicMock(return_value="Mock market analysis.")
+            self._mock_provider.extract_tool_calls = MagicMock(return_value=[])
+            self._mock_provider.chat_with_tools = AsyncMock(return_value=("Mock analysis", []))
+            self._mock_provider.chat = AsyncMock(return_value=MagicMock())
+            mock_provider_factory.return_value = self._mock_provider
+            self.agent = MarketAnalystAgent()
 
     def test_init(self):
-        """Agent should initialize with correct attributes."""
         assert self.agent.name == "MarketAnalyst"
         assert self.agent.agent_type == "market_analyst"
 
     def test_system_prompt_not_empty(self):
-        """System prompt should be a non-empty string."""
         prompt = self.agent.system_prompt
         assert isinstance(prompt, str)
         assert len(prompt) > 100
 
     def test_system_prompt_contains_key_concepts(self):
-        """System prompt should mention key trading concepts."""
         prompt = self.agent.system_prompt
         assert "market" in prompt.lower()
         assert "risk" in prompt.lower()
 
     def test_tools_are_list(self):
-        """Tools should be a list of tool definitions."""
         tools = self.agent.tools
         assert isinstance(tools, list)
         assert len(tools) > 0
 
     def test_tools_have_required_fields(self):
-        """Each tool should have name, description, and input_schema."""
         for tool in self.agent.tools:
             assert "name" in tool
             assert "description" in tool
@@ -47,19 +50,8 @@ class TestMarketAnalystAgent:
 
     @pytest.mark.asyncio
     async def test_run_returns_dict(self):
-        """run() should return a dict even if Claude API fails."""
-        # Mock the Claude client to avoid API calls
-        mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.content = []
-        mock_response.usage = MagicMock(input_tokens=100, output_tokens=50)
-        mock_response.stop_reason = "end_turn"
-        mock_client.chat = AsyncMock(return_value=mock_response)
-        mock_client.extract_text = MagicMock(return_value="Mock market analysis complete.")
-        mock_client.extract_tool_use = MagicMock(return_value=[])
-        mock_client.chat_with_tools = AsyncMock(return_value=("Mock analysis", []))
-
-        self.agent._client = mock_client
+        """run() should return a dict with agent output."""
+        self.agent._provider.chat_with_tools = AsyncMock(return_value=("Mock analysis complete.", []))
 
         context = {"tickers": ["AAPL"], "account_equity": 100000.0}
         result = await self.agent.run(context)
@@ -70,10 +62,8 @@ class TestMarketAnalystAgent:
 
     @pytest.mark.asyncio
     async def test_run_handles_error_gracefully(self):
-        """run() should handle errors gracefully without raising."""
-        mock_client = AsyncMock()
-        mock_client.chat_with_tools = AsyncMock(side_effect=Exception("API Error"))
-        self.agent._client = mock_client
+        """run() should catch errors and return error dict."""
+        self.agent._provider.chat_with_tools = AsyncMock(side_effect=Exception("API Error"))
 
         context = {"tickers": ["AAPL"]}
         result = await self.agent.run(context)
@@ -81,10 +71,8 @@ class TestMarketAnalystAgent:
         assert isinstance(result, dict)
         assert "error" in result or "analysis" in result
 
-    def test_format_context_as_message(self):
-        """_format_context_as_message should return non-empty string."""
+    def test_format_context(self):
         context = {"market": {"price": 100}, "tickers": ["AAPL"]}
-        message = self.agent._format_context_as_message(context)
+        message = self.agent._format_context(context)
         assert isinstance(message, str)
-        assert len(message) > 0
         assert "AAPL" in message

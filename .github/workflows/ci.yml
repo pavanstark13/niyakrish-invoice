@@ -93,7 +93,9 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://trader:trader_pass@localhost:5432/trading_db_test
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test_secret_key
-      ANTHROPIC_API_KEY: test_key
+      AI_PROVIDER: gemini
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ENVIRONMENT: test
       DEBUG: "true"
 
