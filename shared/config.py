@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Cloud database/cache SSL settings
+    # Neon requires SSL; Upstash requires TLS (rediss://)
+    # Both are handled automatically by the connection strings,
+    # but asyncpg needs ssl="require" explicitly for Neon.
+    database_ssl: bool = True  # set False for local dev without SSL
+
     # App
     debug: bool = False
     environment: str = "development"

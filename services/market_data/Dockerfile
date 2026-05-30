@@ -21,4 +21,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8001
 
-CMD ["uvicorn", "services.market_data.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["sh", "-c", "uvicorn services.market_data.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

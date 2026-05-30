@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r /app/services/execution_engine/requirements.tx
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8004
-CMD ["uvicorn", "services.execution_engine.main:app", "--host", "0.0.0.0", "--port", "8004"]
+CMD ["sh", "-c", "uvicorn services.execution_engine.main:app --host 0.0.0.0 --port ${PORT:-8004}"]

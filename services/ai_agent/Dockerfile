@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r /app/services/ai_agent/requirements.txt
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8005
-CMD ["uvicorn", "services.ai_agent.main:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["sh", "-c", "uvicorn services.ai_agent.main:app --host 0.0.0.0 --port ${PORT:-8005}"]

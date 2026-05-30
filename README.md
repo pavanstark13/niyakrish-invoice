@@ -1,5 +1,25 @@
 # AI Trading Agent Platform
 
+## 🌐 Access From Any Device
+
+This platform is fully cloud-hosted — open from your phone, iPad, or any browser:
+
+| Service | URL |
+|---------|-----|
+| **Dashboard** | https://trading-ai-agent.vercel.app |
+| **AI Agent API** | https://ai-agent-xxx.railway.app/docs |
+| **Monitoring** | https://monitoring-xxx.railway.app/docs |
+
+## ☁️ Cloud Stack
+- **Railway** — Backend microservices (auto-deploys on git push)
+- **Neon** — PostgreSQL database (serverless, free tier)
+- **Upstash** — Redis cache (serverless, free tier)
+- **Vercel** — React dashboard (CDN, accessible worldwide)
+
+See [docs/cloud-deployment.md](docs/cloud-deployment.md) for the full setup guide.
+
+---
+
 A production-grade algorithmic trading platform powered by multi-agent AI (Anthropic Claude), Smart Money Concepts (SMC), and a microservices architecture.
 
 ## Architecture

@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r /app/services/monitoring/requirements.txt
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8006
-CMD ["uvicorn", "services.monitoring.main:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["sh", "-c", "uvicorn services.monitoring.main:app --host 0.0.0.0 --port ${PORT:-8006}"]

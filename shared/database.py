@@ -9,12 +9,16 @@ from shared.config import get_settings
 
 settings = get_settings()
 
+# For Neon PostgreSQL, SSL is required; omit for local dev
+connect_args = {"ssl": "require"} if settings.database_ssl else {}
+
 engine = create_async_engine(
     settings.database_url,
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
     pool_pre_ping=True,
     echo=settings.debug,
+    connect_args=connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(
