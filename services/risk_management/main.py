@@ -10,10 +10,8 @@ from prometheus_client import make_asgi_app
 
 from services.risk_management.api.v1.router import router
 from services.risk_management.config import get_settings
-from shared.database import engine
 from shared.logging_config import configure_logging
 from shared.middleware import LoggingMiddleware, RequestIDMiddleware, TimingMiddleware
-from shared.redis_client import close_redis_pool, get_redis_client
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.service_name)
@@ -23,14 +21,36 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting Risk Management Service")
-    async with engine.connect() as conn:
-        await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
-    redis = get_redis_client()
-    await redis.ping()
+
+    try:
+        from shared.database import engine  # noqa: PLC0415
+        import sqlalchemy  # noqa: PLC0415
+        async with engine.connect() as conn:
+            await conn.execute(sqlalchemy.text("SELECT 1"))
+        logger.info("Database connected")
+    except Exception as e:
+        logger.warning("Database connection failed — continuing", error=str(e))
+
+    try:
+        from shared.redis_client import get_redis_client  # noqa: PLC0415
+        await get_redis_client().ping()
+        logger.info("Redis connected")
+    except Exception as e:
+        logger.warning("Redis connection failed — continuing", error=str(e))
+
     logger.info("Risk Management Service ready")
     yield
-    await engine.dispose()
-    await close_redis_pool()
+
+    try:
+        from shared.database import engine  # noqa: PLC0415
+        await engine.dispose()
+    except Exception:
+        pass
+    try:
+        from shared.redis_client import close_redis_pool  # noqa: PLC0415
+        await close_redis_pool()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Risk Management Service", version="0.1.0", lifespan=lifespan)
