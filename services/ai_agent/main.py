@@ -10,10 +10,7 @@ from prometheus_client import make_asgi_app
 
 from services.ai_agent.api.v1.router import router
 from services.ai_agent.config import get_settings
-from shared.database import engine
 from shared.logging_config import configure_logging
-from shared.middleware import LoggingMiddleware, RequestIDMiddleware, TimingMiddleware
-from shared.redis_client import close_redis_pool, get_redis_client
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.service_name)
@@ -22,22 +19,51 @@ logger = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("Starting AI Agent Service")
-    async with engine.connect() as conn:
-        await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
-    await get_redis_client().ping()
-    logger.info("AI Agent Service ready", model=settings.claude_model)
+    logger.info("Starting AI Agent Service", provider=settings.ai_provider)
+
+    # Connect to database if configured
+    if settings.database_url and "localhost" not in settings.database_url:
+        try:
+            from shared.database import engine  # noqa: PLC0415
+            import sqlalchemy  # noqa: PLC0415
+            async with engine.connect() as conn:
+                await conn.execute(sqlalchemy.text("SELECT 1"))
+            logger.info("Database connected")
+        except Exception as e:
+            logger.warning("Database connection failed — continuing", error=str(e))
+
+    # Connect to Redis if configured
+    if settings.redis_url and "localhost" not in settings.redis_url:
+        try:
+            from shared.redis_client import get_redis_client  # noqa: PLC0415
+            await get_redis_client().ping()
+            logger.info("Redis connected")
+        except Exception as e:
+            logger.warning("Redis connection failed — continuing", error=str(e))
+
+    logger.info("AI Agent Service ready", provider=settings.ai_provider)
     yield
-    await engine.dispose()
-    await close_redis_pool()
+
+    # Cleanup
+    try:
+        from shared.database import engine  # noqa: PLC0415
+        await engine.dispose()
+    except Exception:
+        pass
+    try:
+        from shared.redis_client import close_redis_pool  # noqa: PLC0415
+        await close_redis_pool()
+    except Exception:
+        pass
 
 
 app = FastAPI(
     title="AI Agent Service",
-    description="Multi-agent AI system for trading decisions using Claude",
+    description="Multi-agent AI trading system powered by Gemini / Claude",
     version="0.1.0",
     lifespan=lifespan,
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,14 +71,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from shared.middleware import LoggingMiddleware, RequestIDMiddleware, TimingMiddleware  # noqa: E402
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(TimingMiddleware)
 app.add_middleware(RequestIDMiddleware)
+
 app.include_router(router, prefix="/api/v1")
+
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 
 @app.get("/")
 async def root() -> dict:
-    return {"service": "ai-agent", "status": "running", "model": settings.claude_model}
+    return {
+        "service": "ai-agent",
+        "status": "running",
+        "provider": settings.ai_provider,
+        "model": settings.gemini_model if settings.ai_provider == "gemini" else settings.claude_model,
+    }
