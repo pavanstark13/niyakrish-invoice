@@ -669,6 +669,10 @@
       .view-header, .action-bar, .gp-actions, .no-print, .btn, .modal {
         display: none !important;
       }
+      /* Explicitly hide due date and remarks even if inside .sheet */
+      #due-date-row, #remarks-row, #internal-notes-row {
+        display: none !important;
+      }
 
       /* Invoice print safe padding */
       .sheet {
@@ -1375,7 +1379,7 @@
                 <input id="poNumber" type="text"/>
               </div>
             </div>
-            <div class="field-row no-print">
+            <div class="field-row no-print" id="due-date-row">
               <div style="flex:1">
                 <label>Payment Due Date</label>
                 <input id="dueDate" type="date"/>
@@ -1502,11 +1506,11 @@
           </ol>
         </div>
 
-        <div class="no-print" style="margin-top:8px; border:1px dashed #ccc; padding:6px; border-radius:4px; background:#fffbeb;">
+        <div class="no-print" id="internal-notes-row" style="margin-top:8px; border:1px dashed #ccc; padding:6px; border-radius:4px; background:#fffbeb;">
           <label style="font-weight:700;font-size:11px;color:#92400e;">🔒 Internal Notes (not printed):</label>
           <textarea id="invoiceNotes" style="width:100%;min-height:34px;font-size:12px;border:none;background:transparent;padding:2px;margin-top:2px;resize:vertical;" placeholder="Internal tracking notes, project references, reminders…"></textarea>
         </div>
-        <div class="no-print" style="border:1px solid #000;padding:6px;margin-top:8px;">
+        <div class="no-print" id="remarks-row" style="border:1px solid #000;padding:6px;margin-top:8px;">
           <label style="font-weight:700;font-size:12px;">Remarks:</label>
           <textarea id="invoiceRemarks" style="width:100%;min-height:32px;font-size:12px;border:none;padding:2px;margin-top:2px;resize:vertical;" placeholder="Special instructions or notes for the customer…"></textarea>
         </div>
@@ -3969,12 +3973,11 @@
       const invs = getStoredInvoices();
       const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const headers = [
-        'Invoice No','Date','PO Number',
-        'Customer Name','Phone','GSTIN','Address','Site','PIN',
+        'Invoice No','Date',
+        'Customer Name','Phone','GSTIN','Address','Site',
         'Product Description','Grades & Qty',
         'Sub Total','CGST','SGST','TCS','Net Amount',
-        'Paid Amount','Balance Due','Status',
-        'Due Date','Remarks'
+        'Paid Amount','Balance Due','Status'
       ];
       let csv = headers.map(esc).join(',') + '\n';
       invs.forEach(i => {
@@ -3983,13 +3986,11 @@
         const row = [
           i.invoiceNo,
           i.invoiceDate ? i.invoiceDate.slice(0, 16) : '',
-          i.poNumber || '',
           i.customer?.name   || '',
           i.customer?.phone  || '',
           i.customer?.gstin  || '',
           i.customer?.address|| '',
           i.customer?.site   || '',
-          i.customer?.pin    || '',
           i.product?.productName || i.product?.hsnDesc || 'Ready Mix Concrete',
           gradesQty,
           i.totals?.subTotal  || 0,
@@ -3999,9 +4000,7 @@
           i.totals?.netAmount || 0,
           i.paidAmount || 0,
           balance > 0 ? balance : 0,
-          i.status || '',
-          i.dueDate  || '',
-          i.remarks  || ''
+          i.status || ''
         ];
         csv += row.map(esc).join(',') + '\n';
       });
