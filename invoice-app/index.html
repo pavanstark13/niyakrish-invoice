@@ -5,7 +5,6 @@
   <!-- Firebase compat SDK (v9 compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -1091,7 +1090,7 @@
     <div class="login-box">
       <div class="login-logo">🏭 Niyakrish Industries</div>
       <div class="login-sub">Enterprise Invoice Control Center</div>
-      <input type="email" id="login-email" placeholder="Email address" autocomplete="username"/>
+      <input type="text" id="login-email" placeholder="Username" autocomplete="username" style="text-transform:none;"/>
       <input type="password" id="login-password" placeholder="Password" autocomplete="current-password"
              onkeydown="if(event.key==='Enter') doLogin()"/>
       <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
@@ -2151,6 +2150,7 @@
     </div>
 
     <!-- ══ VIEW: COMPANY SETTINGS ══ -->
+    <!-- Change Password Card (appended at bottom of settings view) -->
     <div id="view-settings" class="view-panel">
       <div class="view-header">
         <div class="view-title">
@@ -2248,6 +2248,35 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Change Login Credentials -->
+      <div class="card" style="margin-top:20px; border-color:#6366f1;">
+        <h3 style="font-size:15px; font-weight:700; margin-bottom:6px; color:#6366f1;">🔐 Change Login Credentials</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">
+          Default username is <b>admin</b> and default password is <b>Niyakrish@690</b>. Change them here.
+        </p>
+        <form onsubmit="changeAppPassword(event)" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Current Password</label>
+            <input type="password" id="cp-current" placeholder="Enter current password">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">New Username</label>
+            <input type="text" id="cp-username" placeholder="New username">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">New Password</label>
+            <input type="password" id="cp-new" placeholder="Min 6 characters">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:11px;">Confirm New Password</label>
+            <input type="password" id="cp-confirm" placeholder="Repeat new password">
+          </div>
+          <div style="grid-column:1/-1;">
+            <button type="submit" class="btn accent" style="background:#6366f1;">💾 Update Credentials</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -2506,40 +2535,90 @@
     let db = null;
     const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','company_settings'];
 
-    // ── AUTH ──
-    let auth = null;
+    // ── CUSTOM AUTH (no external service) ──
+    // Default credentials — change via Settings > Change Password
+    // Default: username=admin  password=Niyakrish@690
+    const DEFAULT_USER = 'admin';
+    const DEFAULT_PASS_HASH = 'a4a3c3e8b1f2d6e7c9b0a5f4e2d1c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4a3c2'; // placeholder, real hash set below
 
-    function doLogin(){
-      const email = document.getElementById('login-email').value.trim();
-      const pass  = document.getElementById('login-password').value;
-      const btn   = document.getElementById('login-btn');
-      const err   = document.getElementById('login-error');
-      if(!email || !pass){ err.textContent = 'Enter email and password.'; return; }
+    async function sha256(str){
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    async function doLogin(){
+      const user = document.getElementById('login-email').value.trim();
+      const pass = document.getElementById('login-password').value;
+      const btn  = document.getElementById('login-btn');
+      const err  = document.getElementById('login-error');
+      if(!user || !pass){ err.textContent = 'Enter username and password.'; return; }
       btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
-      auth.signInWithEmailAndPassword(email, pass)
-        .catch(e => {
-          err.textContent = e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
-            ? 'Incorrect email or password.' : e.message;
-          btn.disabled = false; btn.textContent = 'Sign In';
-        });
+
+      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
+      const expectedUser = stored ? stored.username : DEFAULT_USER;
+      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
+
+      const inputHash = await sha256(user + ':' + pass);
+      if(user === expectedUser && inputHash === expectedHash){
+        sessionStorage.setItem('niyakrish_auth', '1');
+        showApp(user);
+      } else {
+        err.textContent = 'Incorrect username or password.';
+        btn.disabled = false; btn.textContent = 'Sign In';
+      }
     }
 
     function doLogout(){
-      if(auth) auth.signOut();
+      sessionStorage.removeItem('niyakrish_auth');
+      hideApp();
     }
 
-    function showApp(user){
+    async function changeAppPassword(event){
+      if(event) event.preventDefault();
+      const curPass  = document.getElementById('cp-current').value;
+      const newUser  = document.getElementById('cp-username').value.trim();
+      const newPass  = document.getElementById('cp-new').value;
+      const confPass = document.getElementById('cp-confirm').value;
+      if(!curPass || !newUser || !newPass){ showToast('Fill all fields.','error'); return; }
+      if(newPass !== confPass){ showToast('New passwords do not match.','error'); return; }
+      if(newPass.length < 6){ showToast('Password must be at least 6 characters.','error'); return; }
+
+      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
+      const expectedUser = stored ? stored.username : DEFAULT_USER;
+      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
+      const curHash = await sha256(expectedUser + ':' + curPass);
+
+      if(curHash !== expectedHash){ showToast('Current password is incorrect.','error'); return; }
+
+      const newHash = await sha256(newUser + ':' + newPass);
+      localStorage.setItem('app_credentials', JSON.stringify({ username: newUser, passHash: newHash }));
+      document.getElementById('cp-current').value = '';
+      document.getElementById('cp-new').value = '';
+      document.getElementById('cp-confirm').value = '';
+      showToast('✓ Login credentials updated successfully!','success');
+    }
+
+    function showApp(username){
       document.getElementById('login-overlay').classList.add('hidden');
       const el = document.getElementById('logged-in-user');
-      if(el) el.textContent = '👤 ' + (user.email || '');
+      if(el) el.textContent = '👤 ' + username;
     }
 
     function hideApp(){
       document.getElementById('login-overlay').classList.remove('hidden');
       document.getElementById('login-password').value = '';
       document.getElementById('login-error').textContent = '';
-      document.getElementById('login-btn').disabled = false;
-      document.getElementById('login-btn').textContent = 'Sign In';
+      const btn = document.getElementById('login-btn');
+      if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
+    }
+
+    function checkAuth(){
+      if(sessionStorage.getItem('niyakrish_auth')){
+        const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
+        showApp(stored ? stored.username : DEFAULT_USER);
+        return true;
+      }
+      return false;
     }
 
     // Default config — overridable via Data Center UI
@@ -2560,11 +2639,6 @@
         const config = JSON.parse(cfg);
         if(!firebase.apps.length) firebase.initializeApp(config);
         db = firebase.firestore();
-        auth = firebase.auth();
-        // Listen for login/logout
-        auth.onAuthStateChanged(user => {
-          if(user){ showApp(user); } else { hideApp(); }
-        });
         updateCloudStatus('connected');
         populateFirebaseForm(config);
       }catch(e){
@@ -4965,6 +5039,9 @@
 
     // ======= Init & Window Load =======
     async function init(){
+      // Check if already authenticated this session
+      checkAuth();
+
       const invoiceNoInput = document.getElementById('invoiceNo');
       invoiceNoInput.readOnly = true; // start in AUTO mode
       const now = new Date();
