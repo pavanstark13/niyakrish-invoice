@@ -3966,12 +3966,46 @@
     }
 
     function exportSummary(){
-      const invs=getStoredInvoices();
-      let csv="Invoice No,Date,Customer,GSTIN,PIN,Net,CGST,SGST\n";
-      invs.forEach(i=>{
-        csv+=`${i.invoiceNo},${i.invoiceDate},${i.customer?.name},${i.customer?.gstin||""},${i.customer?.pin||""},${i.totals?.netAmount},${i.totals?.cgstTotal},${i.totals?.sgstTotal}\n`
+      const invs = getStoredInvoices();
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const headers = [
+        'Invoice No','Date','PO Number',
+        'Customer Name','Phone','GSTIN','Address','Site','PIN',
+        'Product Description','Grades & Qty',
+        'Sub Total','CGST','SGST','TCS','Net Amount',
+        'Paid Amount','Balance Due','Status',
+        'Due Date','Remarks'
+      ];
+      let csv = headers.map(esc).join(',') + '\n';
+      invs.forEach(i => {
+        const gradesQty = (i.rows || []).map(r => r.grade + ' x ' + r.qty).join('; ');
+        const balance   = (i.totals?.netAmount || 0) - (i.paidAmount || 0);
+        const row = [
+          i.invoiceNo,
+          i.invoiceDate ? i.invoiceDate.slice(0, 16) : '',
+          i.poNumber || '',
+          i.customer?.name   || '',
+          i.customer?.phone  || '',
+          i.customer?.gstin  || '',
+          i.customer?.address|| '',
+          i.customer?.site   || '',
+          i.customer?.pin    || '',
+          i.product?.productName || i.product?.hsnDesc || 'Ready Mix Concrete',
+          gradesQty,
+          i.totals?.subTotal  || 0,
+          i.totals?.cgstTotal || 0,
+          i.totals?.sgstTotal || 0,
+          i.totals?.tcsAmount || 0,
+          i.totals?.netAmount || 0,
+          i.paidAmount || 0,
+          balance > 0 ? balance : 0,
+          i.status || '',
+          i.dueDate  || '',
+          i.remarks  || ''
+        ];
+        csv += row.map(esc).join(',') + '\n';
       });
-      downloadCSV(csv, 'invoices_summary.csv');
+      downloadCSV(csv, 'invoices_export.csv');
     }
 
     // ======= Calculation =======
@@ -4137,11 +4171,14 @@
       let all = getStoredInvoices();
       const idx = all.findIndex(x => x.invoiceNo === inv.invoiceNo);
 
-      if(idx>=0) {
+      if(idx >= 0) {
+        // Updating an existing saved invoice — preserve payment data, don't touch seq
         inv.paidAmount = all[idx].paidAmount || 0;
         inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
         all[idx] = inv;
       } else {
+        // Brand-new invoice — consume the sequence number NOW (first save only)
+        consumeNextInvoiceNo();
         all.push(inv);
       }
 
@@ -4274,7 +4311,9 @@
     }
 
     function newInvoice(){
-      const nextNo = consumeNextInvoiceNo();
+      // PEEK only — do NOT consume/increment the sequence yet
+      // The number is consumed only when the invoice is actually saved
+      const nextNo = peekNextInvoiceNo();
       activeClientPricing = [];
 
       // Reset date field to current time
