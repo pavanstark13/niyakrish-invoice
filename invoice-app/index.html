@@ -4118,11 +4118,18 @@
     }
 
     // ======= REFACTORED INVOICE NO SEQUENCE =======
-    const MIN_SEQ = 693; // invoices 001-693 already issued; next = 694
+    const MIN_SEQ = 778; // invoices 001-778 already issued; next = 779
     function getSeq(){
       const v = localStorage.getItem('invoice_seq');
       const n = v !== null ? parseInt(v, 10) : 0;
-      return n < MIN_SEQ ? MIN_SEQ : n;
+      if(n < MIN_SEQ){
+        // Stored value is below the floor — correct it immediately in both
+        // localStorage and Firestore so every device stays consistent
+        localStorage.setItem('invoice_seq', String(MIN_SEQ));
+        cloudPush('invoice_seq', String(MIN_SEQ));
+        return MIN_SEQ;
+      }
+      return n;
     }
     function setSeq(v){ localStorage.setItem('invoice_seq', String(v)); cloudPush('invoice_seq', String(v)); updateDashboardMetrics(); }
     function pad(n){ return String(n).padStart(3,'0'); }
