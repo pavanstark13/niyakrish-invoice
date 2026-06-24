@@ -2627,7 +2627,7 @@
       if(user === expectedUser && inputHash === expectedHash){
         sessionStorage.setItem('niyakrish_auth', '1');
         showApp(user);
-        // Always re-pull cloud data on login so every device sees the latest records
+        // Pull latest cloud data then start real-time listeners
         if(db){
           btn.textContent = 'Loading data…';
           await loadFromCloud(false);
@@ -2638,6 +2638,7 @@
           const invNoInput = document.getElementById('invoiceNo');
           if(invNoInput) invNoInput.value = peekNextInvoiceNo();
           refreshActiveView();
+          startRealtimeSync(); // keep all devices in sync from now on
         }
         btn.disabled = false; btn.textContent = 'Sign In';
       } else {
@@ -2648,6 +2649,7 @@
 
     function doLogout(){
       sessionStorage.removeItem('niyakrish_auth');
+      stopRealtimeSync();
       hideApp();
     }
 
@@ -2848,6 +2850,58 @@
       }
       const els = [document.getElementById('backup-status-text'), document.getElementById('cloud-sync-status')];
       els.forEach(el => { if(el){ el.textContent = text; el.style.color = color; } });
+    }
+
+    // ======= REAL-TIME CROSS-DEVICE SYNC (Firestore onSnapshot) =======
+    let _realtimeUnsubs = [];
+
+    function startRealtimeSync(){
+      if(!db) return;
+      stopRealtimeSync(); // clear any previous listeners first
+
+      const keysToWatch = [...CLOUD_KEYS, 'app_credentials'];
+      keysToWatch.forEach(key => {
+        try{
+          const unsub = db.collection('niyakrish_data').doc(key).onSnapshot(snap => {
+            if(!snap.exists) return;
+            const incoming = snap.data().value;
+            if(incoming == null) return;
+            const current = localStorage.getItem(key);
+            if(incoming === current) return; // our own write echoing back — skip
+
+            localStorage.setItem(key, incoming);
+
+            // Only update UI once the user is authenticated
+            if(!sessionStorage.getItem('niyakrish_auth')) return;
+            _applyRealtimeUpdate(key);
+          }, err => {
+            console.warn('Realtime listener error for', key, err);
+            if(err.code === 'permission-denied') updateCloudStatus('error');
+          });
+          _realtimeUnsubs.push(unsub);
+        }catch(e){ console.warn('Could not start listener for', key, e); }
+      });
+    }
+
+    function stopRealtimeSync(){
+      _realtimeUnsubs.forEach(fn => { try{ fn(); }catch(e){} });
+      _realtimeUnsubs = [];
+    }
+
+    function _applyRealtimeUpdate(key){
+      if(key === 'company_settings') applyCompanySettings(getCompanySettings());
+      const isDataKey = ['invoices','invoice_payments','invoice_customers',
+                         'invoice_gatepasses','invoice_seq','gp_seq'].includes(key);
+      if(isDataKey){
+        updateDashboardMetrics();
+        renderDashboardCharts();
+      }
+      if(key === 'invoice_customers') loadAutofills();
+      if(key === 'invoice_seq' || key === 'gp_seq'){
+        const el = document.getElementById('invoiceNo');
+        if(el) el.value = peekNextInvoiceNo();
+      }
+      refreshActiveView();
     }
 
     // ======= DASHBOARD STATS & PURE SVG CHARTS =======
@@ -5485,6 +5539,9 @@
         renderDashboardCharts();
         loadAutofills();
         refreshActiveView();
+        // Start real-time listeners so any device that saves data is instantly
+        // reflected here without needing a page refresh
+        startRealtimeSync();
       }
 
       // Set invoice number after possible cloud pull (seq may have updated)
