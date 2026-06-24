@@ -1153,6 +1153,25 @@
         GP History
       </button>
 
+      <div class="sidebar-section-label">SALES</div>
+
+      <button class="menu-item" onclick="switchView('quotation')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+        Quotation Builder
+      </button>
+      <button class="menu-item" onclick="switchView('qhistory')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+        Quotation History
+      </button>
+      <button class="menu-item" onclick="switchView('purchaseorder')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+        Purchase Order
+      </button>
+      <button class="menu-item" onclick="switchView('pohistory')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
+        PO History
+      </button>
+
       <div class="sidebar-section-label">ACCOUNTS</div>
 
       <button class="menu-item" onclick="switchView('customers')">
@@ -2345,6 +2364,327 @@
       </div>
     </div>
 
+  <!-- ====== QUOTATION BUILDER ====== -->
+  <div id="view-quotation" class="view-panel">
+    <div class="card no-print" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Quotation Builder</h2>
+      <button class="btn secondary" onclick="newQuotation()">+ New Quote</button>
+      <button class="btn accent" onclick="saveQuotation()">💾 Save Quote</button>
+      <button class="btn secondary" onclick="printQuotation()">🖨 Print</button>
+      <button class="btn" style="background:#10b981;color:#fff;" onclick="convertQuoteToInvoice()">→ Convert to Invoice</button>
+      <button class="btn secondary" onclick="switchView('qhistory')">📋 All Quotes</button>
+    </div>
+
+    <!-- Printable Quote Sheet -->
+    <div id="quote-sheet" class="sheet" style="background:#fff; max-width:800px; margin:0 auto; padding:20px; border:1px solid #e2e8f0; border-radius:8px;">
+      <!-- Header -->
+      <div id="q-company-header" style="display:grid; grid-template-columns:80px 1fr auto; gap:12px; align-items:center; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:12px;">
+        <img id="q-logo-img" src="" alt="" style="max-width:80px; max-height:60px; display:none;">
+        <div>
+          <div id="q-co-name" style="font-size:18px; font-weight:700;"></div>
+          <div id="q-co-addr" style="font-size:11px; color:#555;"></div>
+          <div id="q-co-gstin" style="font-size:11px; color:#555;"></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:20px; font-weight:800; letter-spacing:2px; color:#4f46e5;">QUOTATION</div>
+          <div style="font-size:12px; color:#555; margin-top:4px;">Quote No: <strong id="q-display-no">QT-001</strong></div>
+          <div style="font-size:12px; color:#555;">Date: <span id="q-display-date"></span></div>
+          <div style="font-size:12px; color:#f59e0b;">Valid Until: <span id="q-display-valid"></span></div>
+        </div>
+      </div>
+
+      <!-- Form Fields (no-print hides on paper, inputs used for entry) -->
+      <div class="no-print" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:14px;">
+        <div class="form-group" style="margin:0;">
+          <label>Quote No</label>
+          <input type="text" id="q-no" readonly style="background:#f1f5f9;">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>Date</label>
+          <input type="date" id="q-date" oninput="updateQuoteDisplayFields()">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>Valid Until</label>
+          <input type="date" id="q-valid-until" oninput="updateQuoteDisplayFields()">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label>Status</label>
+          <select id="q-status">
+            <option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Customer + Company split -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
+        <div style="border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
+          <div style="font-size:10px; font-weight:700; color:#6b7280; margin-bottom:6px; text-transform:uppercase;">Bill To</div>
+          <div class="form-group no-print" style="margin:0 0 6px;">
+            <input type="text" id="q-cust-name" placeholder="Customer Name" oninput="updateQuoteDisplayFields()" list="q-cust-list" style="font-weight:600;">
+            <datalist id="q-cust-list"></datalist>
+          </div>
+          <div id="q-print-cust-name" class="print-only" style="font-weight:700; font-size:13px;"></div>
+          <input type="text" id="q-cust-phone" placeholder="Phone" class="no-print" oninput="updateQuoteDisplayFields()" style="margin-bottom:4px;">
+          <div id="q-print-cust-phone" class="print-only" style="font-size:11px;"></div>
+          <input type="text" id="q-cust-gstin" placeholder="GSTIN" class="no-print" oninput="updateQuoteDisplayFields()">
+          <div id="q-print-cust-gstin" class="print-only" style="font-size:11px;"></div>
+          <textarea id="q-cust-addr" placeholder="Address" class="no-print" rows="2" oninput="updateQuoteDisplayFields()" style="margin-top:4px; resize:none;"></textarea>
+          <div id="q-print-cust-addr" class="print-only" style="font-size:11px; white-space:pre-line;"></div>
+          <input type="text" id="q-cust-site" placeholder="Site / Delivery Location" class="no-print" oninput="updateQuoteDisplayFields()">
+          <div id="q-print-cust-site" class="print-only" style="font-size:11px;"></div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:6px; padding:10px; background:#f8fafc;">
+          <div style="font-size:10px; font-weight:700; color:#6b7280; margin-bottom:6px; text-transform:uppercase;">Quotation Details</div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>Quote #:</strong> <span id="q-detail-no"></span></div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>Date:</strong> <span id="q-detail-date"></span></div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>Valid Till:</strong> <span id="q-detail-valid" style="color:#f59e0b; font-weight:600;"></span></div>
+          <div style="font-size:12px;"><strong>Status:</strong> <span id="q-detail-status" style="color:#4f46e5; font-weight:600;"></span></div>
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px;">
+        <thead>
+          <tr style="background:#0f172a; color:#fff;">
+            <th style="padding:8px 6px; text-align:left; width:35%;">Description</th>
+            <th style="padding:8px 4px; text-align:center; width:8%;">Qty</th>
+            <th style="padding:8px 4px; text-align:center; width:8%;">Unit</th>
+            <th style="padding:8px 4px; text-align:right; width:10%;">Rate (₹)</th>
+            <th style="padding:8px 4px; text-align:center; width:7%;">Disc%</th>
+            <th style="padding:8px 4px; text-align:center; width:6%;">GST%</th>
+            <th style="padding:8px 4px; text-align:right; width:12%;">Amount (₹)</th>
+            <th class="no-print" style="padding:8px 4px; width:6%;"></th>
+          </tr>
+        </thead>
+        <tbody id="quote-rows-body"></tbody>
+      </table>
+      <div class="no-print" style="margin-bottom:12px; display:flex; gap:8px;">
+        <button class="btn secondary" onclick="addQuoteRow()" style="font-size:12px;">+ Add Row</button>
+      </div>
+
+      <!-- Totals -->
+      <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+        <table style="width:280px; font-size:12px; border-collapse:collapse;">
+          <tr><td style="padding:4px 10px; color:#6b7280;">Sub Total</td><td style="padding:4px 10px; text-align:right;" id="q-subtotal">₹0.00</td></tr>
+          <tr><td style="padding:4px 10px; color:#6b7280;">CGST</td><td style="padding:4px 10px; text-align:right;" id="q-cgst-total">₹0.00</td></tr>
+          <tr><td style="padding:4px 10px; color:#6b7280;">SGST</td><td style="padding:4px 10px; text-align:right;" id="q-sgst-total">₹0.00</td></tr>
+          <tr style="background:#0f172a; color:#fff; font-weight:700; font-size:14px;">
+            <td style="padding:8px 10px; border-radius:4px 0 0 4px;">Net Total</td>
+            <td style="padding:8px 10px; text-align:right; border-radius:0 4px 4px 0;" id="q-net-amount">₹0.00</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Terms & Notes -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div>
+          <div style="font-size:11px; font-weight:700; color:#6b7280; margin-bottom:4px; text-transform:uppercase;">Terms & Conditions</div>
+          <textarea id="q-terms" class="no-print" rows="4" placeholder="Payment terms, delivery terms, validity notes…" style="width:100%; resize:none; font-size:12px;"></textarea>
+          <div id="q-terms-print" class="print-only" style="font-size:11px; white-space:pre-line; border:1px solid #e2e8f0; padding:8px; border-radius:4px; min-height:60px;"></div>
+        </div>
+        <div>
+          <div style="font-size:11px; font-weight:700; color:#6b7280; margin-bottom:4px; text-transform:uppercase;">Notes</div>
+          <textarea id="q-notes" class="no-print" rows="4" placeholder="Internal notes (not printed)…" style="width:100%; resize:none; font-size:12px;"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:16px; border-top:1px solid #e2e8f0; padding-top:10px; text-align:center; font-size:10px; color:#9ca3af;">
+        This is a computer generated quotation. Subject to our standard terms and conditions.
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== QUOTATION HISTORY ====== -->
+  <div id="view-qhistory" class="view-panel">
+    <div class="card" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Quotation History</h2>
+      <button class="btn accent" onclick="switchView('quotation'); newQuotation();">+ New Quotation</button>
+    </div>
+    <!-- Filters -->
+    <div class="card no-print" style="margin-bottom:14px; padding:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;">
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Search</label><input type="text" id="qh-search" placeholder="Quote no / customer…" oninput="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">From Date</label><input type="date" id="qh-from" onchange="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">To Date</label><input type="date" id="qh-to" onchange="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+        <select id="qh-status" onchange="renderQHistoryView()">
+          <option value="">All</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+          <th style="padding:10px 8px; text-align:left;">Quote No</th>
+          <th style="padding:10px 8px; text-align:left;">Date</th>
+          <th style="padding:10px 8px; text-align:left;">Customer</th>
+          <th style="padding:10px 8px; text-align:left;">Valid Until</th>
+          <th style="padding:10px 8px; text-align:right;">Amount</th>
+          <th style="padding:10px 8px; text-align:center;">Status</th>
+          <th style="padding:10px 8px; text-align:center;">Actions</th>
+        </tr></thead>
+        <tbody id="qhistory-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== PURCHASE ORDER BUILDER ====== -->
+  <div id="view-purchaseorder" class="view-panel">
+    <div class="card no-print" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Purchase Order</h2>
+      <button class="btn secondary" onclick="newPurchaseOrder()">+ New PO</button>
+      <button class="btn accent" onclick="savePurchaseOrder()">💾 Save PO</button>
+      <button class="btn secondary" onclick="printPurchaseOrder()">🖨 Print</button>
+      <button class="btn secondary" onclick="switchView('pohistory')">📋 All POs</button>
+    </div>
+
+    <!-- Printable PO Sheet -->
+    <div id="po-sheet" class="sheet" style="background:#fff; max-width:800px; margin:0 auto; padding:20px; border:1px solid #e2e8f0; border-radius:8px;">
+      <!-- Header -->
+      <div id="po-company-header" style="display:grid; grid-template-columns:80px 1fr auto; gap:12px; align-items:center; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:12px;">
+        <img id="po-logo-img" src="" alt="" style="max-width:80px; max-height:60px; display:none;">
+        <div>
+          <div id="po-co-name" style="font-size:18px; font-weight:700;"></div>
+          <div id="po-co-addr" style="font-size:11px; color:#555;"></div>
+          <div id="po-co-gstin" style="font-size:11px; color:#555;"></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:20px; font-weight:800; letter-spacing:2px; color:#10b981;">PURCHASE ORDER</div>
+          <div style="font-size:12px; color:#555; margin-top:4px;">PO No: <strong id="po-display-no">PO-001</strong></div>
+          <div style="font-size:12px; color:#555;">Date: <span id="po-display-date"></span></div>
+          <div style="font-size:12px; color:#555;">Delivery By: <span id="po-display-delivery" style="color:#10b981; font-weight:600;"></span></div>
+        </div>
+      </div>
+
+      <!-- Form fields -->
+      <div class="no-print" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:14px;">
+        <div class="form-group" style="margin:0;"><label>PO No</label><input type="text" id="po-no" readonly style="background:#f1f5f9;"></div>
+        <div class="form-group" style="margin:0;"><label>Date</label><input type="date" id="po-date" oninput="updatePODisplayFields()"></div>
+        <div class="form-group" style="margin:0;"><label>Expected Delivery Date</label><input type="date" id="po-delivery-date" oninput="updatePODisplayFields()"></div>
+        <div class="form-group" style="margin:0;"><label>Status</label>
+          <select id="po-status">
+            <option>Draft</option><option>Sent</option><option>Received</option><option>Partially Received</option><option>Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Vendor + PO Details -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
+        <div style="border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
+          <div style="font-size:10px; font-weight:700; color:#6b7280; margin-bottom:6px; text-transform:uppercase;">Vendor / Supplier</div>
+          <input type="text" id="po-vendor-name" placeholder="Vendor / Supplier Name" class="no-print" oninput="updatePODisplayFields()" style="font-weight:600; margin-bottom:4px;">
+          <div id="po-print-vendor-name" class="print-only" style="font-weight:700; font-size:13px;"></div>
+          <input type="text" id="po-vendor-contact" placeholder="Contact Person" class="no-print" oninput="updatePODisplayFields()" style="margin-bottom:4px;">
+          <div id="po-print-vendor-contact" class="print-only" style="font-size:11px;"></div>
+          <input type="text" id="po-vendor-phone" placeholder="Phone" class="no-print" oninput="updatePODisplayFields()" style="margin-bottom:4px;">
+          <div id="po-print-vendor-phone" class="print-only" style="font-size:11px;"></div>
+          <input type="text" id="po-vendor-gstin" placeholder="GSTIN" class="no-print" oninput="updatePODisplayFields()" style="margin-bottom:4px;">
+          <div id="po-print-vendor-gstin" class="print-only" style="font-size:11px;"></div>
+          <textarea id="po-vendor-addr" placeholder="Address" class="no-print" rows="2" oninput="updatePODisplayFields()" style="resize:none;"></textarea>
+          <div id="po-print-vendor-addr" class="print-only" style="font-size:11px; white-space:pre-line;"></div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:6px; padding:10px; background:#f0fdf4;">
+          <div style="font-size:10px; font-weight:700; color:#6b7280; margin-bottom:6px; text-transform:uppercase;">PO Details</div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>PO #:</strong> <span id="po-detail-no"></span></div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>Date:</strong> <span id="po-detail-date"></span></div>
+          <div style="font-size:12px; margin-bottom:4px;"><strong>Delivery By:</strong> <span id="po-detail-delivery" style="color:#10b981; font-weight:600;"></span></div>
+          <div style="font-size:12px;"><strong>Status:</strong> <span id="po-detail-status" style="color:#10b981; font-weight:600;"></span></div>
+        </div>
+      </div>
+
+      <!-- Items Table -->
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px;">
+        <thead>
+          <tr style="background:#064e3b; color:#fff;">
+            <th style="padding:8px 6px; text-align:left; width:38%;">Item Description</th>
+            <th style="padding:8px 4px; text-align:center; width:8%;">Qty</th>
+            <th style="padding:8px 4px; text-align:center; width:8%;">Unit</th>
+            <th style="padding:8px 4px; text-align:right; width:10%;">Rate (₹)</th>
+            <th style="padding:8px 4px; text-align:center; width:7%;">GST%</th>
+            <th style="padding:8px 4px; text-align:right; width:12%;">Amount (₹)</th>
+            <th class="no-print" style="padding:8px 4px; width:6%;"></th>
+          </tr>
+        </thead>
+        <tbody id="po-rows-body"></tbody>
+      </table>
+      <div class="no-print" style="margin-bottom:12px;">
+        <button class="btn secondary" onclick="addPORow()" style="font-size:12px;">+ Add Item</button>
+      </div>
+
+      <!-- Totals -->
+      <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+        <table style="width:280px; font-size:12px; border-collapse:collapse;">
+          <tr><td style="padding:4px 10px; color:#6b7280;">Sub Total</td><td style="padding:4px 10px; text-align:right;" id="po-subtotal">₹0.00</td></tr>
+          <tr><td style="padding:4px 10px; color:#6b7280;">CGST</td><td style="padding:4px 10px; text-align:right;" id="po-cgst-total">₹0.00</td></tr>
+          <tr><td style="padding:4px 10px; color:#6b7280;">SGST</td><td style="padding:4px 10px; text-align:right;" id="po-sgst-total">₹0.00</td></tr>
+          <tr style="background:#064e3b; color:#fff; font-weight:700; font-size:14px;">
+            <td style="padding:8px 10px; border-radius:4px 0 0 4px;">Total Amount</td>
+            <td style="padding:8px 10px; text-align:right; border-radius:0 4px 4px 0;" id="po-net-amount">₹0.00</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Terms & Notes -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div>
+          <div style="font-size:11px; font-weight:700; color:#6b7280; margin-bottom:4px; text-transform:uppercase;">Terms & Conditions</div>
+          <textarea id="po-terms" class="no-print" rows="4" placeholder="Delivery terms, payment terms, quality standards…" style="width:100%; resize:none; font-size:12px;"></textarea>
+          <div id="po-terms-print" class="print-only" style="font-size:11px; white-space:pre-line; border:1px solid #e2e8f0; padding:8px; border-radius:4px; min-height:60px;"></div>
+        </div>
+        <div>
+          <div style="font-size:11px; font-weight:700; color:#6b7280; margin-bottom:4px; text-transform:uppercase;">Notes / Remarks</div>
+          <textarea id="po-notes" class="no-print" rows="4" placeholder="Special instructions, packing requirements…" style="width:100%; resize:none; font-size:12px;"></textarea>
+          <div id="po-notes-print" class="print-only" style="font-size:11px; white-space:pre-line; border:1px solid #e2e8f0; padding:8px; border-radius:4px; min-height:60px;"></div>
+        </div>
+      </div>
+
+      <!-- Authorised Signature Block -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:24px; border-top:1px solid #e2e8f0; padding-top:16px;">
+        <div>
+          <div style="font-size:10px; color:#9ca3af;">Received By</div>
+          <div style="height:40px; border-bottom:1px solid #111; margin-bottom:4px;"></div>
+          <div style="font-size:10px; color:#6b7280;">Name &amp; Signature</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px; color:#9ca3af;">For <span id="po-auth-co-name"></span></div>
+          <div style="height:40px; border-bottom:1px solid #111; margin-bottom:4px;"></div>
+          <div style="font-size:10px; color:#6b7280;">Authorised Signatory</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== PO HISTORY ====== -->
+  <div id="view-pohistory" class="view-panel">
+    <div class="card" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Purchase Order History</h2>
+      <button class="btn accent" onclick="switchView('purchaseorder'); newPurchaseOrder();">+ New PO</button>
+    </div>
+    <!-- Filters -->
+    <div class="card no-print" style="margin-bottom:14px; padding:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;">
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Search</label><input type="text" id="poh-search" placeholder="PO no / vendor…" oninput="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">From Date</label><input type="date" id="poh-from" onchange="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">To Date</label><input type="date" id="poh-to" onchange="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+        <select id="poh-status" onchange="renderPOHistoryView()">
+          <option value="">All</option><option>Draft</option><option>Sent</option><option>Received</option><option>Partially Received</option><option>Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+          <th style="padding:10px 8px; text-align:left;">PO No</th>
+          <th style="padding:10px 8px; text-align:left;">Date</th>
+          <th style="padding:10px 8px; text-align:left;">Vendor</th>
+          <th style="padding:10px 8px; text-align:left;">Delivery Date</th>
+          <th style="padding:10px 8px; text-align:right;">Amount</th>
+          <th style="padding:10px 8px; text-align:center;">Status</th>
+          <th style="padding:10px 8px; text-align:center;">Actions</th>
+        </tr></thead>
+        <tbody id="pohistory-body"></tbody>
+      </table>
+    </div>
+  </div>
+
   </div><!-- /.main-content -->
 
   <!-- ====== Summary Modal ====== -->
@@ -2465,7 +2805,8 @@
       dashboard: 'Dashboard', invoice: 'Invoice Builder', history: 'History',
       gatepass: 'Gate Pass', gphistory: 'GP History', customers: 'Customers',
       payments: 'Payments', ledger: 'Ledger', datacenter: 'Data Center',
-      settings: 'Settings'
+      settings: 'Settings', quotation: 'Quotation Builder', qhistory: 'Quotations',
+      purchaseorder: 'Purchase Order', pohistory: 'PO History'
     };
 
     function switchView(viewId) {
@@ -2509,6 +2850,15 @@
         renderGPHistoryView();
       } else if (viewId === 'settings') {
         loadCompanySettingsForm();
+      } else if (viewId === 'qhistory') {
+        renderQHistoryView();
+      } else if (viewId === 'pohistory') {
+        renderPOHistoryView();
+      } else if (viewId === 'quotation') {
+        populateQuoteCompanyHeader();
+        populateQCustList();
+      } else if (viewId === 'purchaseorder') {
+        populatePOCompanyHeader();
       }
 
       // Mirror autofill dropdowns
@@ -2598,7 +2948,7 @@
 
     // ======= FIREBASE CLOUD SYNC =======
     let db = null;
-    const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','gp_seq','company_settings'];
+    const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','gp_seq','company_settings','quotations','purchase_orders','quote_seq','po_seq'];
 
     // ── CUSTOM AUTH (no external service) ──
     // Default credentials — change via Settings > Change Password
@@ -2889,14 +3239,18 @@
     }
 
     function _applyRealtimeUpdate(key){
-      if(key === 'company_settings') applyCompanySettings(getCompanySettings());
+      if(key === 'company_settings'){
+        applyCompanySettings(getCompanySettings());
+        populateQuoteCompanyHeader();
+        populatePOCompanyHeader();
+      }
       const isDataKey = ['invoices','invoice_payments','invoice_customers',
                          'invoice_gatepasses','invoice_seq','gp_seq'].includes(key);
       if(isDataKey){
         updateDashboardMetrics();
         renderDashboardCharts();
       }
-      if(key === 'invoice_customers') loadAutofills();
+      if(key === 'invoice_customers'){ loadAutofills(); populateQCustList(); }
       if(key === 'invoice_seq' || key === 'gp_seq'){
         const el = document.getElementById('invoiceNo');
         if(el) el.value = peekNextInvoiceNo();
@@ -5470,6 +5824,420 @@
       }
     });
 
+    // ======= QUOTATION MODULE =======
+    function getStoredQuotations(){ try{ return JSON.parse(localStorage.getItem('quotations')||'[]'); }catch(e){ return []; } }
+    function saveStoredQuotations(arr){ localStorage.setItem('quotations', JSON.stringify(arr)); cloudPush('quotations', JSON.stringify(arr)); }
+
+    function getQuoteSeq(){ return parseInt(localStorage.getItem('quote_seq')||'0',10); }
+    function setQuoteSeq(v){ localStorage.setItem('quote_seq', String(v)); cloudPush('quote_seq', String(v)); }
+    function consumeNextQuoteNo(){ const n = getQuoteSeq()+1; setQuoteSeq(n); return 'QT-'+String(n).padStart(3,'0'); }
+    function peekNextQuoteNo(){ return 'QT-'+String(getQuoteSeq()+1).padStart(3,'0'); }
+
+    function populateQCustList(){
+      const dl = document.getElementById('q-cust-list');
+      if(!dl) return;
+      const customers = getStoredCustomers();
+      dl.innerHTML = customers.map(c=>`<option value="${escapeHtml(c.name)}">`).join('');
+    }
+
+    function populateQuoteCompanyHeader(){
+      const cs = getCompanySettings();
+      const setT = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v||''; };
+      setT('q-co-name', cs.companyName);
+      setT('q-co-addr', [cs.address, cs.city, cs.state].filter(Boolean).join(', '));
+      setT('q-co-gstin', cs.gstin ? 'GSTIN: '+cs.gstin : '');
+      const logoEls = [document.getElementById('q-logo-img')];
+      logoEls.forEach(el=>{ if(!el) return; if(cs.logo){ el.src=cs.logo; el.style.display='block'; }else{ el.style.display='none'; } });
+    }
+
+    function updateQuoteDisplayFields(){
+      const v = id => document.getElementById(id)?.value || '';
+      const setT = (id,val) => { const e=document.getElementById(id); if(e) e.textContent=val; };
+      const dateStr = v('q-date') ? new Date(v('q-date')).toLocaleDateString('en-IN') : '';
+      const validStr = v('q-valid-until') ? new Date(v('q-valid-until')).toLocaleDateString('en-IN') : '';
+      setT('q-display-no', v('q-no'));
+      setT('q-display-date', dateStr);
+      setT('q-display-valid', validStr);
+      setT('q-detail-no', v('q-no'));
+      setT('q-detail-date', dateStr);
+      setT('q-detail-valid', validStr);
+      setT('q-detail-status', v('q-status'));
+      // Customer print fields
+      setT('q-print-cust-name', v('q-cust-name'));
+      setT('q-print-cust-phone', v('q-cust-phone') ? 'Ph: '+v('q-cust-phone') : '');
+      setT('q-print-cust-gstin', v('q-cust-gstin') ? 'GSTIN: '+v('q-cust-gstin') : '');
+      const addrEl = document.getElementById('q-print-cust-addr');
+      if(addrEl) addrEl.textContent = v('q-cust-addr');
+      setT('q-print-cust-site', v('q-cust-site') ? 'Site: '+v('q-cust-site') : '');
+      // Terms print
+      const tEl = document.getElementById('q-terms-print');
+      if(tEl) tEl.textContent = document.getElementById('q-terms')?.value || '';
+    }
+
+    function addQuoteRow(desc='', qty='', unit='', rate='', disc='0', cgst='9', sgst='9'){
+      const tbody = document.getElementById('quote-rows-body');
+      if(!tbody) return;
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td style="padding:4px;"><input type="text" class="q-desc" value="${escapeHtml(desc)}" placeholder="Item description" style="width:100%; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center;"><input type="number" class="q-qty" value="${qty}" min="0" step="any" style="width:60px; text-align:right; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center;"><input type="text" class="q-unit" value="${unit}" placeholder="m³" style="width:45px; text-align:center; font-size:12px;"></td>
+        <td style="padding:4px; text-align:right;"><input type="number" class="q-rate" value="${rate}" min="0" step="any" style="width:80px; text-align:right; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center;"><input type="number" class="q-disc" value="${disc}" min="0" max="100" style="width:45px; text-align:center; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center;">
+          <input type="number" class="q-gst" value="${cgst}" min="0" style="width:40px; text-align:center; font-size:12px;" oninput="calcQuoteTotals()" title="Combined GST% (CGST+SGST)">
+        </td>
+        <td style="padding:4px; text-align:right; font-size:12px; font-weight:600;" class="q-amount">₹0.00</td>
+        <td class="no-print" style="padding:4px; text-align:center;">
+          <button onclick="this.closest('tr').remove(); calcQuoteTotals();" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:16px;" title="Remove row">×</button>
+        </td>`;
+      tbody.appendChild(tr);
+      calcQuoteTotals();
+    }
+
+    function calcQuoteTotals(){
+      const rows = document.querySelectorAll('#quote-rows-body tr');
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(row=>{
+        const qty = parseFloat(row.querySelector('.q-qty')?.value)||0;
+        const rate = parseFloat(row.querySelector('.q-rate')?.value)||0;
+        const disc = parseFloat(row.querySelector('.q-disc')?.value)||0;
+        const gst = parseFloat(row.querySelector('.q-gst')?.value)||0;
+        const gross = qty * rate * (1 - disc/100);
+        const halfGst = gross * (gst/2) / 100;
+        sub += gross; cgstT += halfGst; sgstT += halfGst;
+        const amtEl = row.querySelector('.q-amount');
+        if(amtEl) amtEl.textContent = '₹'+formatNum(gross + halfGst*2);
+      });
+      const net = sub + cgstT + sgstT;
+      const se = id => document.getElementById(id);
+      if(se('q-subtotal')) se('q-subtotal').textContent = '₹'+formatNum(sub);
+      if(se('q-cgst-total')) se('q-cgst-total').textContent = '₹'+formatNum(cgstT);
+      if(se('q-sgst-total')) se('q-sgst-total').textContent = '₹'+formatNum(sgstT);
+      if(se('q-net-amount')) se('q-net-amount').textContent = '₹'+formatNum(net);
+    }
+
+    function newQuotation(){
+      const no = peekNextQuoteNo();
+      const today = new Date().toISOString().split('T')[0];
+      const validDate = new Date(); validDate.setDate(validDate.getDate()+30);
+      const validStr = validDate.toISOString().split('T')[0];
+      const ids = ['q-no','q-date','q-valid-until','q-status','q-cust-name','q-cust-phone','q-cust-gstin','q-cust-addr','q-cust-site','q-terms','q-notes'];
+      const vals = [no, today, validStr, 'Draft', '', '', '', '', '', '', ''];
+      ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.value=vals[i]; });
+      document.getElementById('quote-rows-body').innerHTML = '';
+      addQuoteRow('', '1', 'm³', '', '0', '9', '9');
+      calcQuoteTotals();
+      populateQuoteCompanyHeader();
+      populateQCustList();
+      updateQuoteDisplayFields();
+    }
+
+    function serializeQuotation(){
+      const v = id => document.getElementById(id)?.value||'';
+      const rows = [...document.querySelectorAll('#quote-rows-body tr')].map(row=>({
+        description: row.querySelector('.q-desc')?.value||'',
+        qty: parseFloat(row.querySelector('.q-qty')?.value)||0,
+        unit: row.querySelector('.q-unit')?.value||'',
+        rate: parseFloat(row.querySelector('.q-rate')?.value)||0,
+        disc_pct: parseFloat(row.querySelector('.q-disc')?.value)||0,
+        gst_pct: parseFloat(row.querySelector('.q-gst')?.value)||0,
+      }));
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(r=>{ const g=r.qty*r.rate*(1-r.disc_pct/100); const hg=g*(r.gst_pct/2)/100; sub+=g; cgstT+=hg; sgstT+=hg; });
+      return {
+        quoteNo: v('q-no'), quoteDate: v('q-date'), validUntil: v('q-valid-until'),
+        status: v('q-status'),
+        customer: { name:v('q-cust-name'), phone:v('q-cust-phone'), gstin:v('q-cust-gstin'), address:v('q-cust-addr'), site:v('q-cust-site') },
+        rows, totals: { subTotal:sub, cgstTotal:cgstT, sgstTotal:sgstT, netAmount:sub+cgstT+sgstT },
+        terms: v('q-terms'), notes: v('q-notes'),
+        convertedToInvoice: null, savedAt: new Date().toISOString()
+      };
+    }
+
+    function saveQuotation(){
+      const q = serializeQuotation();
+      if(!q.customer.name){ showToast('Enter customer name.','error'); return; }
+      if(!q.quoteNo){ showToast('Quote number is missing.','error'); return; }
+      const all = getStoredQuotations();
+      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
+      const isNew = idx===-1;
+      if(isNew){ consumeNextQuoteNo(); all.push(q); }
+      else all[idx]=q;
+      saveStoredQuotations(all);
+      showToast((isNew?'✓ Quotation saved: ':'✓ Quotation updated: ')+q.quoteNo,'success');
+    }
+
+    function loadQuotation(q){
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('q-no', q.quoteNo); se('q-date', q.quoteDate); se('q-valid-until', q.validUntil||'');
+      se('q-status', q.status||'Draft'); se('q-cust-name', q.customer?.name||'');
+      se('q-cust-phone', q.customer?.phone||''); se('q-cust-gstin', q.customer?.gstin||'');
+      se('q-cust-addr', q.customer?.address||''); se('q-cust-site', q.customer?.site||'');
+      se('q-terms', q.terms||''); se('q-notes', q.notes||'');
+      document.getElementById('quote-rows-body').innerHTML='';
+      (q.rows||[]).forEach(r=>addQuoteRow(r.description,r.qty,r.unit,r.rate,r.disc_pct,r.gst_pct,r.gst_pct));
+      calcQuoteTotals(); populateQuoteCompanyHeader(); updateQuoteDisplayFields();
+    }
+
+    function deleteQuotation(quoteNo){
+      if(!confirm('Delete quotation '+quoteNo+'?')) return;
+      const all = getStoredQuotations().filter(q=>q.quoteNo!==quoteNo);
+      saveStoredQuotations(all);
+      renderQHistoryView();
+      showToast('Quotation deleted.','success');
+    }
+
+    function printQuotation(){
+      updateQuoteDisplayFields();
+      const tEl = document.getElementById('q-terms-print');
+      if(tEl) tEl.textContent = document.getElementById('q-terms')?.value||'';
+      window.print();
+    }
+
+    function convertQuoteToInvoice(){
+      const q = serializeQuotation();
+      if(!q.customer.name){ showToast('Save the quotation first.','error'); return; }
+      // Populate invoice form with quote data
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
+      se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
+      se('customerSite', q.customer.site);
+      // Mark the quotation as converted
+      const all = getStoredQuotations();
+      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
+      if(idx!==-1){ all[idx].convertedToInvoice=peekNextInvoiceNo(); saveStoredQuotations(all); }
+      switchView('invoice');
+      newInvoice();
+      // Re-populate customer after newInvoice resets
+      setTimeout(()=>{
+        se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
+        se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
+        se('customerSite', q.customer.site);
+      }, 50);
+      showToast('✓ Quote data copied to Invoice Builder.','success');
+    }
+
+    function renderQHistoryView(){
+      const all = getStoredQuotations().sort((a,b)=>b.quoteNo.localeCompare(a.quoteNo));
+      const search = (document.getElementById('qh-search')?.value||'').toLowerCase();
+      const from = document.getElementById('qh-from')?.value||'';
+      const to = document.getElementById('qh-to')?.value||'';
+      const status = document.getElementById('qh-status')?.value||'';
+      const filtered = all.filter(q=>{
+        if(search && !q.quoteNo.toLowerCase().includes(search) && !(q.customer?.name||'').toLowerCase().includes(search)) return false;
+        if(from && q.quoteDate < from) return false;
+        if(to && q.quoteDate > to) return false;
+        if(status && q.status!==status) return false;
+        return true;
+      });
+      const statusColor = s => ({Draft:'#6b7280',Sent:'#4f46e5',Accepted:'#10b981',Rejected:'#ef4444',Expired:'#f59e0b'}[s]||'#6b7280');
+      const tbody = document.getElementById('qhistory-body');
+      if(!tbody) return;
+      if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No quotations found.</td></tr>'; return; }
+      tbody.innerHTML = filtered.map(q=>`
+        <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+          <td style="padding:10px 8px; font-weight:600; color:#4f46e5;">${escapeHtml(q.quoteNo)}</td>
+          <td style="padding:10px 8px;">${q.quoteDate ? new Date(q.quoteDate).toLocaleDateString('en-IN') : '-'}</td>
+          <td style="padding:10px 8px;">${escapeHtml(q.customer?.name||'-')}</td>
+          <td style="padding:10px 8px; color:#f59e0b;">${q.validUntil ? new Date(q.validUntil).toLocaleDateString('en-IN') : '-'}</td>
+          <td style="padding:10px 8px; text-align:right; font-weight:600;">₹${formatNum(q.totals?.netAmount||0)}</td>
+          <td style="padding:10px 8px; text-align:center;">
+            <span style="background:${statusColor(q.status)}22; color:${statusColor(q.status)}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${escapeHtml(q.status||'Draft')}</span>
+            ${q.convertedToInvoice ? '<br><span style="font-size:10px; color:#10b981;">→ Inv '+escapeHtml(q.convertedToInvoice)+'</span>' : ''}
+          </td>
+          <td style="padding:10px 8px; text-align:center; white-space:nowrap;">
+            <button class="btn secondary" style="font-size:11px; padding:4px 8px;" onclick="loadQuotation(getStoredQuotations().find(x=>x.quoteNo==='${escapeHtml(q.quoteNo)}')); switchView('quotation');">Edit</button>
+            <button class="btn secondary" style="font-size:11px; padding:4px 8px;" onclick="loadQuotation(getStoredQuotations().find(x=>x.quoteNo==='${escapeHtml(q.quoteNo)}')); switchView('quotation'); setTimeout(printQuotation,100);">Print</button>
+            <button class="btn" style="font-size:11px; padding:4px 8px; background:#ef4444; color:#fff;" onclick="deleteQuotation('${escapeHtml(q.quoteNo)}')">Del</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    // ======= PURCHASE ORDER MODULE =======
+    function getStoredPOs(){ try{ return JSON.parse(localStorage.getItem('purchase_orders')||'[]'); }catch(e){ return []; } }
+    function saveStoredPOs(arr){ localStorage.setItem('purchase_orders', JSON.stringify(arr)); cloudPush('purchase_orders', JSON.stringify(arr)); }
+
+    function getPOSeq(){ return parseInt(localStorage.getItem('po_seq')||'0',10); }
+    function setPOSeq(v){ localStorage.setItem('po_seq', String(v)); cloudPush('po_seq', String(v)); }
+    function consumeNextPONo(){ const n=getPOSeq()+1; setPOSeq(n); return 'PO-'+String(n).padStart(3,'0'); }
+    function peekNextPONo(){ return 'PO-'+String(getPOSeq()+1).padStart(3,'0'); }
+
+    function populatePOCompanyHeader(){
+      const cs = getCompanySettings();
+      const setT=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v||''; };
+      setT('po-co-name', cs.companyName); setT('po-auth-co-name', cs.companyName);
+      setT('po-co-addr', [cs.address, cs.city, cs.state].filter(Boolean).join(', '));
+      setT('po-co-gstin', cs.gstin ? 'GSTIN: '+cs.gstin : '');
+      const logoEl = document.getElementById('po-logo-img');
+      if(logoEl){ if(cs.logo){ logoEl.src=cs.logo; logoEl.style.display='block'; }else logoEl.style.display='none'; }
+    }
+
+    function updatePODisplayFields(){
+      const v = id => document.getElementById(id)?.value||'';
+      const setT=(id,val)=>{ const e=document.getElementById(id); if(e) e.textContent=val; };
+      const dateStr = v('po-date') ? new Date(v('po-date')).toLocaleDateString('en-IN') : '';
+      const delivStr = v('po-delivery-date') ? new Date(v('po-delivery-date')).toLocaleDateString('en-IN') : '';
+      setT('po-display-no', v('po-no')); setT('po-display-date', dateStr); setT('po-display-delivery', delivStr);
+      setT('po-detail-no', v('po-no')); setT('po-detail-date', dateStr); setT('po-detail-delivery', delivStr);
+      setT('po-detail-status', v('po-status'));
+      setT('po-print-vendor-name', v('po-vendor-name'));
+      setT('po-print-vendor-contact', v('po-vendor-contact') ? 'Contact: '+v('po-vendor-contact') : '');
+      setT('po-print-vendor-phone', v('po-vendor-phone') ? 'Ph: '+v('po-vendor-phone') : '');
+      setT('po-print-vendor-gstin', v('po-vendor-gstin') ? 'GSTIN: '+v('po-vendor-gstin') : '');
+      const addrEl = document.getElementById('po-print-vendor-addr');
+      if(addrEl) addrEl.textContent = v('po-vendor-addr');
+      const tEl = document.getElementById('po-terms-print');
+      if(tEl) tEl.textContent = document.getElementById('po-terms')?.value||'';
+      const nEl = document.getElementById('po-notes-print');
+      if(nEl) nEl.textContent = document.getElementById('po-notes')?.value||'';
+    }
+
+    function addPORow(desc='', qty='', unit='', rate='', gst='18'){
+      const tbody = document.getElementById('po-rows-body');
+      if(!tbody) return;
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td style="padding:4px;"><input type="text" class="po-desc" value="${escapeHtml(desc)}" placeholder="Item description" style="width:100%; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px;"><input type="number" class="po-qty" value="${qty}" min="0" step="any" style="width:60px; text-align:right; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px;"><input type="text" class="po-unit" value="${unit}" placeholder="Nos/Kg" style="width:50px; font-size:12px;"></td>
+        <td style="padding:4px;"><input type="number" class="po-rate" value="${rate}" min="0" step="any" style="width:80px; text-align:right; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px; text-align:center;"><input type="number" class="po-gst" value="${gst}" min="0" style="width:45px; text-align:center; font-size:12px;" oninput="calcPOTotals()" title="Combined GST%"></td>
+        <td style="padding:4px; text-align:right; font-size:12px; font-weight:600;" class="po-amount">₹0.00</td>
+        <td class="no-print" style="padding:4px; text-align:center;">
+          <button onclick="this.closest('tr').remove(); calcPOTotals();" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;" title="Remove">×</button>
+        </td>`;
+      tbody.appendChild(tr);
+      calcPOTotals();
+    }
+
+    function calcPOTotals(){
+      const rows = document.querySelectorAll('#po-rows-body tr');
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(row=>{
+        const qty=parseFloat(row.querySelector('.po-qty')?.value)||0;
+        const rate=parseFloat(row.querySelector('.po-rate')?.value)||0;
+        const gst=parseFloat(row.querySelector('.po-gst')?.value)||0;
+        const gross=qty*rate;
+        const halfGst=gross*(gst/2)/100;
+        sub+=gross; cgstT+=halfGst; sgstT+=halfGst;
+        const amtEl=row.querySelector('.po-amount');
+        if(amtEl) amtEl.textContent='₹'+formatNum(gross+halfGst*2);
+      });
+      const net=sub+cgstT+sgstT;
+      const se=id=>document.getElementById(id);
+      if(se('po-subtotal')) se('po-subtotal').textContent='₹'+formatNum(sub);
+      if(se('po-cgst-total')) se('po-cgst-total').textContent='₹'+formatNum(cgstT);
+      if(se('po-sgst-total')) se('po-sgst-total').textContent='₹'+formatNum(sgstT);
+      if(se('po-net-amount')) se('po-net-amount').textContent='₹'+formatNum(net);
+    }
+
+    function newPurchaseOrder(){
+      const no = peekNextPONo();
+      const today = new Date().toISOString().split('T')[0];
+      ['po-no','po-date','po-delivery-date','po-status','po-vendor-name','po-vendor-contact','po-vendor-phone','po-vendor-gstin','po-vendor-addr','po-terms','po-notes']
+        .forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.value=[no,today,'','Draft','','','','','','',''][i]; });
+      document.getElementById('po-rows-body').innerHTML='';
+      addPORow('','1','Nos','','18');
+      calcPOTotals();
+      populatePOCompanyHeader();
+      updatePODisplayFields();
+    }
+
+    function serializePO(){
+      const v=id=>document.getElementById(id)?.value||'';
+      const rows=[...document.querySelectorAll('#po-rows-body tr')].map(row=>({
+        description:row.querySelector('.po-desc')?.value||'',
+        qty:parseFloat(row.querySelector('.po-qty')?.value)||0,
+        unit:row.querySelector('.po-unit')?.value||'',
+        rate:parseFloat(row.querySelector('.po-rate')?.value)||0,
+        gst_pct:parseFloat(row.querySelector('.po-gst')?.value)||0,
+      }));
+      let sub=0,cgstT=0,sgstT=0;
+      rows.forEach(r=>{ const g=r.qty*r.rate; const hg=g*(r.gst_pct/2)/100; sub+=g; cgstT+=hg; sgstT+=hg; });
+      return {
+        poNo:v('po-no'), poDate:v('po-date'), deliveryDate:v('po-delivery-date'), status:v('po-status'),
+        vendor:{name:v('po-vendor-name'),contact:v('po-vendor-contact'),phone:v('po-vendor-phone'),gstin:v('po-vendor-gstin'),address:v('po-vendor-addr')},
+        rows, totals:{subTotal:sub,cgstTotal:cgstT,sgstTotal:sgstT,netAmount:sub+cgstT+sgstT},
+        terms:v('po-terms'), notes:v('po-notes'), savedAt:new Date().toISOString()
+      };
+    }
+
+    function savePurchaseOrder(){
+      const po=serializePO();
+      if(!po.vendor.name){ showToast('Enter vendor name.','error'); return; }
+      if(!po.poNo){ showToast('PO number is missing.','error'); return; }
+      const all=getStoredPOs();
+      const idx=all.findIndex(x=>x.poNo===po.poNo);
+      const isNew=idx===-1;
+      if(isNew){ consumeNextPONo(); all.push(po); }
+      else all[idx]=po;
+      saveStoredPOs(all);
+      showToast((isNew?'✓ PO saved: ':'✓ PO updated: ')+po.poNo,'success');
+    }
+
+    function loadPurchaseOrder(po){
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('po-no',po.poNo); se('po-date',po.poDate); se('po-delivery-date',po.deliveryDate||'');
+      se('po-status',po.status||'Draft'); se('po-vendor-name',po.vendor?.name||'');
+      se('po-vendor-contact',po.vendor?.contact||''); se('po-vendor-phone',po.vendor?.phone||'');
+      se('po-vendor-gstin',po.vendor?.gstin||''); se('po-vendor-addr',po.vendor?.address||'');
+      se('po-terms',po.terms||''); se('po-notes',po.notes||'');
+      document.getElementById('po-rows-body').innerHTML='';
+      (po.rows||[]).forEach(r=>addPORow(r.description,r.qty,r.unit,r.rate,r.gst_pct));
+      calcPOTotals(); populatePOCompanyHeader(); updatePODisplayFields();
+    }
+
+    function deletePurchaseOrder(poNo){
+      if(!confirm('Delete PO '+poNo+'?')) return;
+      const all=getStoredPOs().filter(p=>p.poNo!==poNo);
+      saveStoredPOs(all);
+      renderPOHistoryView();
+      showToast('Purchase Order deleted.','success');
+    }
+
+    function printPurchaseOrder(){
+      updatePODisplayFields();
+      window.print();
+    }
+
+    function renderPOHistoryView(){
+      const all=getStoredPOs().sort((a,b)=>b.poNo.localeCompare(a.poNo));
+      const search=(document.getElementById('poh-search')?.value||'').toLowerCase();
+      const from=document.getElementById('poh-from')?.value||'';
+      const to=document.getElementById('poh-to')?.value||'';
+      const status=document.getElementById('poh-status')?.value||'';
+      const filtered=all.filter(p=>{
+        if(search && !p.poNo.toLowerCase().includes(search) && !(p.vendor?.name||'').toLowerCase().includes(search)) return false;
+        if(from && p.poDate<from) return false;
+        if(to && p.poDate>to) return false;
+        if(status && p.status!==status) return false;
+        return true;
+      });
+      const statusColor=s=>({Draft:'#6b7280',Sent:'#4f46e5',Received:'#10b981','Partially Received':'#f59e0b',Cancelled:'#ef4444'}[s]||'#6b7280');
+      const tbody=document.getElementById('pohistory-body');
+      if(!tbody) return;
+      if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No purchase orders found.</td></tr>'; return; }
+      tbody.innerHTML=filtered.map(p=>`
+        <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+          <td style="padding:10px 8px; font-weight:600; color:#10b981;">${escapeHtml(p.poNo)}</td>
+          <td style="padding:10px 8px;">${p.poDate?new Date(p.poDate).toLocaleDateString('en-IN'):'-'}</td>
+          <td style="padding:10px 8px;">${escapeHtml(p.vendor?.name||'-')}</td>
+          <td style="padding:10px 8px; color:#10b981;">${p.deliveryDate?new Date(p.deliveryDate).toLocaleDateString('en-IN'):'-'}</td>
+          <td style="padding:10px 8px; text-align:right; font-weight:600;">₹${formatNum(p.totals?.netAmount||0)}</td>
+          <td style="padding:10px 8px; text-align:center;">
+            <span style="background:${statusColor(p.status)}22; color:${statusColor(p.status)}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${escapeHtml(p.status||'Draft')}</span>
+          </td>
+          <td style="padding:10px 8px; text-align:center; white-space:nowrap;">
+            <button class="btn secondary" style="font-size:11px;padding:4px 8px;" onclick="loadPurchaseOrder(getStoredPOs().find(x=>x.poNo==='${escapeHtml(p.poNo)}')); switchView('purchaseorder');">Edit</button>
+            <button class="btn secondary" style="font-size:11px;padding:4px 8px;" onclick="loadPurchaseOrder(getStoredPOs().find(x=>x.poNo==='${escapeHtml(p.poNo)}')); switchView('purchaseorder'); setTimeout(printPurchaseOrder,100);">Print</button>
+            <button class="btn" style="font-size:11px;padding:4px 8px;background:#ef4444;color:#fff;" onclick="deletePurchaseOrder('${escapeHtml(p.poNo)}')">Del</button>
+          </td>
+        </tr>`).join('');
+    }
+
     // ======= Init & Window Load =======
     async function init(){
       // 1. Init Firebase first so we can pull credentials before showing login
@@ -5559,6 +6327,8 @@
       else if(viewId === 'ledger') loadCustomerSelects();
       else if(viewId === 'gphistory') renderGPHistoryView();
       else if(viewId === 'dashboard'){ updateDashboardMetrics(); renderDashboardCharts(); }
+      else if(viewId === 'qhistory') renderQHistoryView();
+      else if(viewId === 'pohistory') renderPOHistoryView();
       loadAutofills();
     }
 
