@@ -2767,10 +2767,18 @@
       });
     }
 
+    let _cloudPushErrorShown = false;
     function cloudPush(key, value){
       if(!db) return;
       db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
-        .catch(e => console.warn('Cloud push failed for '+key+':', e));
+        .catch(e => {
+          console.warn('Cloud push failed for '+key+':', e);
+          updateCloudStatus('error');
+          if(!_cloudPushErrorShown){
+            _cloudPushErrorShown = true;
+            showToast('⚠️ Cloud save failed — check Firebase rules or connection. Data saved locally only.', 'error');
+          }
+        });
     }
 
     async function cloudPull(key){
@@ -2778,34 +2786,56 @@
       try{
         const snap = await db.collection('niyakrish_data').doc(key).get();
         if(snap.exists) return snap.data().value;
-      }catch(e){ console.warn('Cloud pull failed for '+key+':', e); }
+      }catch(e){
+        console.warn('Cloud pull failed for '+key+':', e);
+        throw e; // let caller handle
+      }
       return null;
     }
 
     async function loadFromCloud(manual){
-      if(!db){ if(manual) alert('No cloud connection. Configure Firebase first.'); return; }
+      if(!db){ if(manual) showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
       updateCloudStatus('syncing');
-      let loaded = 0;
+      let loaded = 0, failed = 0;
       for(const key of CLOUD_KEYS){
-        const val = await cloudPull(key);
-        if(val !== null){ localStorage.setItem(key, val); loaded++; }
+        try{
+          const val = await cloudPull(key);
+          if(val !== null){ localStorage.setItem(key, val); loaded++; }
+        }catch(e){ failed++; }
       }
-      updateCloudStatus('connected');
-      if(manual){
-        alert('Loaded '+loaded+' collections from cloud. Refreshing…');
-        location.reload();
+      if(failed > 0){
+        updateCloudStatus('error');
+        if(manual) showToast('⚠️ Cloud sync failed ('+failed+' errors). Check Firestore security rules — allow read, write for niyakrish_data collection.', 'error');
+      } else {
+        updateCloudStatus('connected');
+        _cloudPushErrorShown = false;
+        if(manual){
+          showToast('✓ Loaded '+loaded+' collections from cloud.', 'success');
+          location.reload();
+        }
       }
     }
 
     async function syncLocalToCloud(){
-      if(!db){ alert('No cloud connection. Configure Firebase first.'); return; }
+      if(!db){ showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
       updateCloudStatus('syncing');
+      let pushed = 0, failed = 0;
       for(const key of CLOUD_KEYS){
         const val = localStorage.getItem(key);
-        if(val) await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
+        if(val){
+          try{
+            await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
+            pushed++;
+          }catch(e){ failed++; console.warn('Sync push failed for '+key+':', e); }
+        }
       }
-      updateCloudStatus('connected');
-      alert('All local data pushed to cloud successfully!');
+      if(failed > 0){
+        updateCloudStatus('error');
+        showToast('⚠️ Cloud push failed for '+failed+' collections. Your Firestore security rules likely need to allow writes. Go to Firebase Console → Firestore → Rules.', 'error');
+      } else {
+        updateCloudStatus('connected');
+        showToast('✓ All local data ('+pushed+' collections) pushed to cloud successfully!', 'success');
+      }
     }
 
     function updateCloudStatus(state){
@@ -5393,12 +5423,17 @@
 
       // 2. Sync credentials from cloud → all devices share the same password
       if(db){
-        const creds = await cloudPull('app_credentials');
-        if(creds){
-          // Cloud credentials take priority (latest password change wins)
-          localStorage.setItem('app_credentials', creds);
+        try{
+          const creds = await cloudPull('app_credentials');
+          if(creds){
+            // Cloud credentials take priority (latest password change wins)
+            localStorage.setItem('app_credentials', creds);
+          }
+          // If cloud has no credentials yet, keep whatever is in localStorage (or default applies at login)
+        }catch(e){
+          // Firebase read blocked (security rules) — will warn user after login via loadFromCloud
+          console.warn('Could not pull credentials from cloud:', e);
         }
-        // If cloud has no credentials yet, keep whatever is in localStorage (or default applies at login)
       }
       // Offline: keep stored local credentials as-is so custom passwords still work
 
