@@ -611,6 +611,7 @@
     }
     .toast.success { background: #10b981; }
     .toast.error   { background: #ef4444; }
+    .toast.warning { background: #d97706; }
 
     @keyframes fadeup {
       from { opacity: 0; transform: translateY(10px); }
@@ -3590,44 +3591,49 @@
     }
 
     // ---- GSTIN API lookup (for brand-new customers not in database) ----
+    function _parseGSTINResponse(d) {
+      // Handle NIC / appyflow / activeinfotech response shapes
+      const info = d.taxpayerInfo || d.data || d;
+      const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || '';
+      const legalName = info.lgnm      || info.legalName  || info.legal_name  || '';
+      const name      = tradeName || legalName;
+      if (!name) throw new Error('No business name in response');
+
+      let address = '';
+      if (info.pradr) {
+        const a = info.pradr.addr || info.pradr;
+        address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean).join(', ');
+      }
+      if (!address) address = info.address || info.principalAddress || '';
+
+      const pincode = (info.pradr?.addr?.pncd) || info.pncd || info.pincode || '';
+      const state   = info.stj || info.state || '';
+      return { name, address, pincode, state };
+    }
+
     async function _fetchGSTINDetails(gstin) {
-      // Try appyflow.in free CORS-friendly API first, then fall back to activeinfotech
-      const apis = [
-        `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`,
-        `https://gst.activeinfotech.in/api/gstin/${encodeURIComponent(gstin)}`
+      // Build target URL for appyflow.in (free Indian GST API)
+      const target = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`;
+
+      // Try directly first (works if they add CORS headers), then via two CORS proxies
+      const attempts = [
+        { url: target, raw: true },
+        { url: `https://corsproxy.io/?url=${encodeURIComponent(target)}`, raw: true },
+        { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, raw: true }
       ];
 
       let lastErr;
-      for (const url of apis) {
+      for (const { url } of attempts) {
         try {
-          const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+          const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(8000) });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const d = await res.json();
-
-          // Handle NIC / appyflow / activeinfotech response shapes
-          const info = d.taxpayerInfo || d.data || d;
-          const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || '';
-          const legalName = info.lgnm      || info.legalName  || info.legal_name  || '';
-          const name      = tradeName || legalName;
-
-          // Build address from NIC nested pradr.addr or flat fields
-          let address = '';
-          if (info.pradr) {
-            const a = info.pradr.addr || info.pradr;
-            address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean).join(', ');
-          }
-          if (!address) address = info.address || info.principalAddress || '';
-
-          const pincode = (info.pradr?.addr?.pncd) || info.pncd || info.pincode || '';
-          const state   = info.stj || info.state || '';
-
-          if (!name) throw new Error('No business name in response');
-          return { name, address, pincode, state };
+          return _parseGSTINResponse(d);
         } catch(e) {
           lastErr = e;
         }
       }
-      throw lastErr || new Error('All GST APIs failed');
+      throw lastErr || new Error('All GST lookup attempts failed');
     }
 
     function _setGSTINStatus(elId, msg, color) {
