@@ -3591,30 +3591,43 @@
 
     // ---- GSTIN API lookup (for brand-new customers not in database) ----
     async function _fetchGSTINDetails(gstin) {
-      // Uses the free public GSTIN lookup API
-      const url = `https://gst.activeinfotech.in/api/gstin/${encodeURIComponent(gstin)}`;
-      const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const d = await res.json();
+      // Try appyflow.in free CORS-friendly API first, then fall back to activeinfotech
+      const apis = [
+        `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`,
+        `https://gst.activeinfotech.in/api/gstin/${encodeURIComponent(gstin)}`
+      ];
 
-      // Handle both activeinfotech and GST NIC response shapes
-      const info = d.data || d.taxpayerInfo || d;
-      const tradeName  = info.tradeName  || info.tradeNam  || info.trade_name  || '';
-      const legalName  = info.legalName  || info.lgnm      || info.legal_name  || '';
-      const name       = tradeName || legalName;
+      let lastErr;
+      for (const url of apis) {
+        try {
+          const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const d = await res.json();
 
-      // Build address from flat field OR NIC nested pradr.addr structure
-      let address = info.address || info.principalAddress || '';
-      if (!address && info.pradr) {
-        const a = info.pradr.addr || info.pradr;
-        const parts = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean);
-        address = parts.join(', ');
+          // Handle NIC / appyflow / activeinfotech response shapes
+          const info = d.taxpayerInfo || d.data || d;
+          const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || '';
+          const legalName = info.lgnm      || info.legalName  || info.legal_name  || '';
+          const name      = tradeName || legalName;
+
+          // Build address from NIC nested pradr.addr or flat fields
+          let address = '';
+          if (info.pradr) {
+            const a = info.pradr.addr || info.pradr;
+            address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean).join(', ');
+          }
+          if (!address) address = info.address || info.principalAddress || '';
+
+          const pincode = (info.pradr?.addr?.pncd) || info.pncd || info.pincode || '';
+          const state   = info.stj || info.state || '';
+
+          if (!name) throw new Error('No business name in response');
+          return { name, address, pincode, state };
+        } catch(e) {
+          lastErr = e;
+        }
       }
-      const pincode = info.pincode || info.pncd || (info.pradr?.addr?.pncd) || '';
-      const state   = info.state   || info.stj  || '';
-
-      if (!name) throw new Error('No business name in response');
-      return { name, address, pincode, state };
+      throw lastErr || new Error('All GST APIs failed');
     }
 
     function _setGSTINStatus(elId, msg, color) {
@@ -3697,14 +3710,18 @@
       }
 
       // 3. External GST API
+      const badge = document.getElementById('gstin-badge');
+      if (badge) { badge.textContent = '🔍 Looking up...'; badge.style.color = '#6b7280'; }
       try {
         const info = await _fetchGSTINDetails(gstin);
         fillIfEmpty('custName', info.name);
         fillIfEmpty('custAddr', [info.address, info.state].filter(Boolean).join(', '));
         fillIfEmpty('pincode',  info.pincode);
+        if (badge) { badge.textContent = '✓ GST portal'; badge.style.color = '#16a34a'; }
         showToast('✓ Business details fetched from GST portal', 'success');
       } catch(e) {
-        // Silently ignore on the invoice form — user can type manually
+        if (badge) { badge.textContent = '⚠ lookup failed'; badge.style.color = '#d97706'; }
+        showToast('⚠ GST portal unavailable — please fill name & address manually', 'warning');
       }
     }
 
