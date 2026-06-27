@@ -1705,8 +1705,9 @@
                 <input type="text" id="cust-phone" placeholder="98765 43210">
               </div>
               <div class="form-group" style="margin-bottom:10px;">
-                <label>GSTIN &nbsp;<span style="font-size:9px;color:#6b7280;">(auto-fills name &amp; address)</span></label>
+                <label>GSTIN &nbsp;<span style="font-size:9px;color:#6b7280;">(auto-fills name &amp; address from GST portal)</span></label>
                 <input type="text" id="cust-gstin" placeholder="29AAKCN0823D1ZM" oninput="lookupCustomerByGSTIN()" style="text-transform:uppercase;">
+                <div id="cust-gstin-status" style="font-size:10px; margin-top:2px; min-height:14px;"></div>
               </div>
               <div class="form-group" style="margin-bottom:10px;">
                 <label>Billing Address</label>
@@ -3574,13 +3575,46 @@
       loadAutofills();
     }
 
-    function lookupCustomerByGSTIN() {
+    // ---- GSTIN API lookup (for brand-new customers not in database) ----
+    async function _fetchGSTINDetails(gstin) {
+      // Uses the free public GSTIN lookup API
+      const url = `https://gst.activeinfotech.in/api/gstin/${encodeURIComponent(gstin)}`;
+      const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const d = await res.json();
+
+      // Handle both activeinfotech and GST NIC response shapes
+      const info = d.data || d.taxpayerInfo || d;
+      const tradeName  = info.tradeName  || info.tradeNam  || info.trade_name  || '';
+      const legalName  = info.legalName  || info.lgnm      || info.legal_name  || '';
+      const name       = tradeName || legalName;
+
+      // Build address from flat field OR NIC nested pradr.addr structure
+      let address = info.address || info.principalAddress || '';
+      if (!address && info.pradr) {
+        const a = info.pradr.addr || info.pradr;
+        const parts = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean);
+        address = parts.join(', ');
+      }
+      const pincode = info.pincode || info.pncd || (info.pradr?.addr?.pncd) || '';
+      const state   = info.state   || info.stj  || '';
+
+      if (!name) throw new Error('No business name in response');
+      return { name, address, pincode, state };
+    }
+
+    function _setGSTINStatus(elId, msg, color) {
+      const el = document.getElementById(elId);
+      if (el) { el.textContent = msg; el.style.color = color; }
+    }
+
+    async function lookupCustomerByGSTIN() {
       const gstin = document.getElementById('cust-gstin').value.trim().toUpperCase();
-      if (gstin.length !== 15) return;
+      if (gstin.length !== 15) { _setGSTINStatus('cust-gstin-status', '', '#6b7280'); return; }
 
       const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
 
-      // 1. Look in saved customers
+      // 1. Local customer database
       const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
       if (match) {
         fill('cust-name',    match.name);
@@ -3588,27 +3622,44 @@
         fill('cust-address', match.address);
         fill('cust-site',    match.site);
         fill('cust-pincode', match.pincode);
+        _setGSTINStatus('cust-gstin-status', '✓ Found in your records', '#16a34a');
         showToast('✓ Customer details auto-filled from existing records', 'success');
         return;
       }
 
-      // 2. Fallback: look in invoice history
+      // 2. Invoice history
       const invMatch = getStoredInvoices().find(i => (i.customer?.gstin||'').toUpperCase() === gstin);
       if (invMatch) {
         fill('cust-name',    invMatch.customer?.name);
         fill('cust-phone',   invMatch.customer?.phone);
         fill('cust-address', invMatch.customer?.address);
         fill('cust-site',    invMatch.customer?.site);
+        _setGSTINStatus('cust-gstin-status', '✓ Found in invoice history', '#16a34a');
         showToast('✓ Customer details found in invoice history', 'success');
+        return;
+      }
+
+      // 3. External GST API for brand-new customers
+      _setGSTINStatus('cust-gstin-status', '🔍 Looking up GST portal...', '#6b7280');
+      try {
+        const info = await _fetchGSTINDetails(gstin);
+        fill('cust-name',    info.name);
+        fill('cust-address', [info.address, info.state, info.pincode].filter(Boolean).join(', '));
+        fill('cust-pincode', info.pincode);
+        _setGSTINStatus('cust-gstin-status', '✓ Auto-filled from GST portal', '#16a34a');
+        showToast('✓ Business details fetched from GST portal', 'success');
+      } catch(e) {
+        _setGSTINStatus('cust-gstin-status', '⚠ GST lookup unavailable — fill manually', '#d97706');
       }
     }
 
-    function lookupCustomerByGSTINInvoice() {
+    async function lookupCustomerByGSTINInvoice() {
       const gstin = (document.getElementById('custGSTIN')?.value || '').trim().toUpperCase();
       if (gstin.length !== 15) return;
 
       const fillIfEmpty = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
 
+      // 1. Local customer database
       const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
       if (match) {
         fillIfEmpty('custName',  match.name);
@@ -3617,6 +3668,29 @@
         fillIfEmpty('siteAddr',  match.site);
         fillIfEmpty('pincode',   match.pincode);
         showToast('✓ Customer auto-filled from GSTIN', 'success');
+        return;
+      }
+
+      // 2. Invoice history
+      const invMatch = getStoredInvoices().find(i => (i.customer?.gstin||'').toUpperCase() === gstin);
+      if (invMatch) {
+        fillIfEmpty('custName',  invMatch.customer?.name);
+        fillIfEmpty('custPhone', invMatch.customer?.phone);
+        fillIfEmpty('custAddr',  invMatch.customer?.address);
+        fillIfEmpty('siteAddr',  invMatch.customer?.site);
+        showToast('✓ Customer auto-filled from invoice history', 'success');
+        return;
+      }
+
+      // 3. External GST API
+      try {
+        const info = await _fetchGSTINDetails(gstin);
+        fillIfEmpty('custName', info.name);
+        fillIfEmpty('custAddr', [info.address, info.state].filter(Boolean).join(', '));
+        fillIfEmpty('pincode',  info.pincode);
+        showToast('✓ Business details fetched from GST portal', 'success');
+      } catch(e) {
+        // Silently ignore on the invoice form — user can type manually
       }
     }
 
@@ -3655,6 +3729,7 @@
       document.getElementById('customer-form').reset();
       document.getElementById('pricing-manager-card').style.display = 'none';
       document.getElementById('cust-pricing-list-tbody').innerHTML = '';
+      _setGSTINStatus('cust-gstin-status', '', '#6b7280');
     }
 
     // Customer custom products pricing controllers
