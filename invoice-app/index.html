@@ -1424,7 +1424,7 @@
               </div>
               <div style="width:150px">
                 <label>GSTIN &nbsp;<span id="gstin-badge" style="font-size:9px;font-weight:700;"></span></label>
-                <input id="custGSTIN" type="text" style="width:100%" oninput="validateGSTIN(this)" placeholder="29AAKCN0823D1ZM"/>
+                <input id="custGSTIN" type="text" style="width:100%;text-transform:uppercase;" oninput="validateGSTIN(this); lookupCustomerByGSTINInvoice();" placeholder="29AAKCN0823D1ZM"/>
               </div>
             </div>
             <label style="margin-top:6px;">Customer Address</label>
@@ -1705,8 +1705,8 @@
                 <input type="text" id="cust-phone" placeholder="98765 43210">
               </div>
               <div class="form-group" style="margin-bottom:10px;">
-                <label>GSTIN</label>
-                <input type="text" id="cust-gstin" placeholder="29AAKCN0823D1ZM">
+                <label>GSTIN &nbsp;<span style="font-size:9px;color:#6b7280;">(auto-fills name &amp; address)</span></label>
+                <input type="text" id="cust-gstin" placeholder="29AAKCN0823D1ZM" oninput="lookupCustomerByGSTIN()" style="text-transform:uppercase;">
               </div>
               <div class="form-group" style="margin-bottom:10px;">
                 <label>Billing Address</label>
@@ -3574,6 +3574,52 @@
       loadAutofills();
     }
 
+    function lookupCustomerByGSTIN() {
+      const gstin = document.getElementById('cust-gstin').value.trim().toUpperCase();
+      if (gstin.length !== 15) return;
+
+      const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
+
+      // 1. Look in saved customers
+      const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
+      if (match) {
+        fill('cust-name',    match.name);
+        fill('cust-phone',   match.phone);
+        fill('cust-address', match.address);
+        fill('cust-site',    match.site);
+        fill('cust-pincode', match.pincode);
+        showToast('✓ Customer details auto-filled from existing records', 'success');
+        return;
+      }
+
+      // 2. Fallback: look in invoice history
+      const invMatch = getStoredInvoices().find(i => (i.customer?.gstin||'').toUpperCase() === gstin);
+      if (invMatch) {
+        fill('cust-name',    invMatch.customer?.name);
+        fill('cust-phone',   invMatch.customer?.phone);
+        fill('cust-address', invMatch.customer?.address);
+        fill('cust-site',    invMatch.customer?.site);
+        showToast('✓ Customer details found in invoice history', 'success');
+      }
+    }
+
+    function lookupCustomerByGSTINInvoice() {
+      const gstin = (document.getElementById('custGSTIN')?.value || '').trim().toUpperCase();
+      if (gstin.length !== 15) return;
+
+      const fillIfEmpty = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
+
+      const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
+      if (match) {
+        fillIfEmpty('custName',  match.name);
+        fillIfEmpty('custPhone', match.phone);
+        fillIfEmpty('custAddr',  match.address);
+        fillIfEmpty('siteAddr',  match.site);
+        fillIfEmpty('pincode',   match.pincode);
+        showToast('✓ Customer auto-filled from GSTIN', 'success');
+      }
+    }
+
     function loadCustomerForEdit(id) {
       const cust = getStoredCustomers().find(c => c.id === id);
       if(!cust) return;
@@ -4934,7 +4980,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="no-print" style="text-align:center"><input type="checkbox" class="row-select"/></td>
-          <td><input class="item-grade" value="${row.grade??'M30'}" oninput="handleGradeInputChange(this)"/></td>
+          <td><input class="item-grade" value="${escapeHtml(row.grade??'M30')}" oninput="handleGradeInputChange(this)"/></td>
           <td><input class="item-qty" type="number" step="0.01" value="${(row.qty??0).toFixed(2)}"/></td>
           <td><input class="item-rate" type="number" step="0.01" value="${(row.rate??0).toFixed(2)}"/></td>
           <td><input class="item-disc" type="number" step="0.01" value="${(row.disc_pct??0).toFixed(2)}" min="0" max="100"/></td>
