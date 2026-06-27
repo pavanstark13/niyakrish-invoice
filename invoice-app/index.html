@@ -2854,6 +2854,9 @@
     // ======= Utilities =======
     function formatNum(n){ return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     function toNumber(v){ return Number((v||'').toString().replace(/,/g,''))||0; }
+    function _pad2(n){ return String(n).padStart(2,'0'); }
+    function _localDateTimeStr(d){ const n=d||new Date(); return `${n.getFullYear()}-${_pad2(n.getMonth()+1)}-${_pad2(n.getDate())}T${_pad2(n.getHours())}:${_pad2(n.getMinutes())}`; }
+    function _localDateStr(d){ const n=d||new Date(); return `${n.getFullYear()}-${_pad2(n.getMonth()+1)}-${_pad2(n.getDate())}`; }
 
     function numberToWords(num){
       const a=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
@@ -4590,7 +4593,8 @@
     }
 
     function setInvoiceDateNow() {
-      document.getElementById('invoiceDate').value = new Date().toISOString().slice(0, 16);
+      const el = document.getElementById('invoiceDate');
+      if(el){ el.value = _localDateTimeStr(); el.dataset.manuallySet = '1'; }
     }
 
     // ======= AUTO-SAVE NEW CUSTOMER FROM INVOICE =======
@@ -4893,7 +4897,8 @@
     function loadInvoice(inv){
       // Header
       document.getElementById('invoiceNo').value = inv.invoiceNo || peekNextInvoiceNo();
-      document.getElementById('invoiceDate').value = inv.invoiceDate || new Date().toISOString().slice(0,16);
+      const _dateEl = document.getElementById('invoiceDate');
+      if(_dateEl){ _dateEl.value = inv.invoiceDate || _localDateTimeStr(); _dateEl.dataset.manuallySet = '1'; }
       document.getElementById('poNumber').value = inv.poNumber || '';
       if (document.getElementById('dueDate')) document.getElementById('dueDate').value = inv.dueDate || '';
       // Customer
@@ -5105,13 +5110,9 @@
       const dateEl = document.getElementById('invoiceDate');
       if(dateEl) delete dateEl.dataset.manuallySet;
 
-      const now = new Date();
-      const pad2 = n => String(n).padStart(2,'0');
-      const nowLocal = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-
       const inv = {
         invoiceNo: nextNo,
-        invoiceDate: nowLocal,
+        invoiceDate: _localDateTimeStr(),
         poNumber: "",
         customer: { name: "", phone: "", address: "", site: "", pin: "" },
         product: { hsnCode: "38245010", hsnDesc: "READY MIX CONCRETE", productName: "Ready Mix Concrete", driverName: "", vehicleNo: "" },
@@ -5129,6 +5130,10 @@
       if (warnBanner) warnBanner.style.display = 'none';
 
       loadInvoice(inv);
+
+      // New invoice: allow live clock to keep updating the date
+      const _newDateEl = document.getElementById('invoiceDate');
+      if(_newDateEl) delete _newDateEl.dataset.manuallySet;
 
       // Re-enforce readonly state based on current mode
       const invNoInput = document.getElementById('invoiceNo');
@@ -5275,7 +5280,7 @@
 
       const dupInvoice = Object.assign({}, current);
       dupInvoice.invoiceNo = nextNo;
-      dupInvoice.invoiceDate = new Date().toISOString().slice(0,16);
+      dupInvoice.invoiceDate = _localDateTimeStr();
       dupInvoice.paidAmount = 0;
       dupInvoice.status = 'Unpaid';
 
@@ -5537,7 +5542,7 @@
       const now = new Date();
       const gpdateInput = document.getElementById('gpdate');
       if (gpdateInput) {
-        gpdateInput.value = now.toISOString().slice(0, 16);
+        gpdateInput.value = _localDateTimeStr(now);
       }
       
       // Only generate a new GP number if the field is empty
@@ -6008,9 +6013,9 @@
 
     function newQuotation(){
       const no = peekNextQuoteNo();
-      const today = new Date().toISOString().split('T')[0];
+      const today = _localDateStr();
       const validDate = new Date(); validDate.setDate(validDate.getDate()+30);
-      const validStr = validDate.toISOString().split('T')[0];
+      const validStr = _localDateStr(validDate);
       const ids = ['q-no','q-date','q-valid-until','q-status','q-cust-name','q-cust-phone','q-cust-gstin','q-cust-addr','q-cust-site','q-terms','q-notes'];
       const vals = [no, today, validStr, 'Draft', '', '', '', '', '', '', ''];
       ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.value=vals[i]; });
@@ -6257,7 +6262,7 @@
 
     function newPurchaseOrder(){
       const no = peekNextPONo();
-      const today = new Date().toISOString().split('T')[0];
+      const today = _localDateStr();
       const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
       se('po-no',no); se('po-date',today); se('po-quote-ref',''); se('po-delivery-date','');
       se('po-status','Draft'); se('po-vendor-name',''); se('po-vendor-contact','');
@@ -6403,12 +6408,7 @@
       // Live clock — updates invoice date/time every 30 seconds unless user edited it manually
       function setInvoiceDateTime(){
         const el = document.getElementById('invoiceDate');
-        if(el && !el.dataset.manuallySet){
-          // Use local time formatted for datetime-local input
-          const now = new Date();
-          const pad2 = n => String(n).padStart(2,'0');
-          el.value = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-        }
+        if(el && !el.dataset.manuallySet) el.value = _localDateTimeStr();
       }
       setInvoiceDateTime();
       setInterval(setInvoiceDateTime, 30000);
