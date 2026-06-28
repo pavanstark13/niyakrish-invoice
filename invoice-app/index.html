@@ -3187,15 +3187,25 @@ table.list-table tbody td {
 
     function _lsRead(key, defaultJson) {
       if (key in _lsCache) return _lsCache[key];
-      try { _lsCache[key] = JSON.parse(localStorage.getItem(key) || defaultJson); }
-      catch(e) { _lsCache[key] = JSON.parse(defaultJson); }
+      try {
+        const raw = localStorage.getItem(key);
+        _lsCache[key] = JSON.parse(raw !== null ? raw : defaultJson);
+      } catch(e) { _lsCache[key] = JSON.parse(defaultJson); }
       return _lsCache[key];
     }
 
     function _lsWrite(key, val) {
+      const prev = _lsCache[key];
       _lsCache[key] = val;
       const json = JSON.stringify(val);
-      localStorage.setItem(key, json);
+      try {
+        localStorage.setItem(key, json);
+      } catch(e) {
+        _lsCache[key] = prev; // rollback — keep cache consistent with storage
+        console.warn('_lsWrite: localStorage.setItem failed for', key, e);
+        showToast('⚠️ Local storage full — data NOT saved. Free up space or archive old records.', 'error');
+        throw e; // propagate so callers (cloudPush) don't fire on a failed save
+      }
       return json; // returned so cloudPush can reuse the serialized string
     }
 
@@ -3218,26 +3228,24 @@ table.list-table tbody td {
     const _page      = { history:0, customers:0, payments:0, qhistory:0, pohistory:0, gphistory:0 };
     const _pageTotal = {};
     const PAGE_SIZE  = 30;
-    let   _keepPage  = false; // true while _pageGo is navigating; suppresses page-reset in _pagSlice
 
     function _pageGo(key, dir) {
       const pages = Math.ceil((_pageTotal[key] || 1) / PAGE_SIZE);
       _page[key]  = Math.max(0, Math.min((_page[key] || 0) + dir, pages - 1));
-      _keepPage   = true;
-      ({ history:  renderHistoryView,
-         customers: renderCustomersTable,
-         payments:  renderPaymentsHistoryTable,
-         qhistory:  renderQHistoryView,
-         pohistory: renderPOHistoryView,
-         gphistory: renderGPHistoryView
+      ({ history:  () => renderHistoryView(true),
+         customers: () => renderCustomersTable(true),
+         payments:  () => renderPaymentsHistoryTable(true),
+         qhistory:  () => renderQHistoryView(true),
+         pohistory: () => renderPOHistoryView(true),
+         gphistory: () => renderGPHistoryView(true)
       })[key]?.();
-      _keepPage = false;
     }
 
     // Slices an array to the current page and records total for _pagRow.
-    // Resets to page 0 on every fresh filter/render call (unless _keepPage is set).
-    function _pagSlice(arr, key) {
-      if (!_keepPage) _page[key] = 0;
+    // keepPage=true preserves the current page offset (used by _pageGo navigation).
+    // keepPage=false (default) resets to page 0 on every fresh filter/render call.
+    function _pagSlice(arr, key, keepPage = false) {
+      if (!keepPage) _page[key] = 0;
       _pageTotal[key] = arr.length;
       const pages = Math.ceil(arr.length / PAGE_SIZE) || 1;
       if (_page[key] >= pages) _page[key] = pages - 1;
@@ -3300,7 +3308,7 @@ table.list-table tbody td {
       t.textContent = msg;
       t.className = `toast ${type}`;
       t.style.display = 'block';
-      setTimeout(()=>{ t.style.display='none'; }, 3500);
+      setTimeout(()=>{ t.style.display='none'; }, APP.TOAST_DURATION_MS);
     }
 
     // ======= View Switching Tabs =======
@@ -3423,22 +3431,24 @@ table.list-table tbody td {
 
     function saveStoredInvoices(arr){
       cloudPush('invoices', _lsWrite('invoices', arr));
-      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
+      updateDashboardMetrics();                              // always — badge is always visible
+      if (_isDashboardActive()) renderDashboardCharts();    // charts only when panel is open
     }
 
     function saveStoredCustomers(arr){
       cloudPush('invoice_customers', _lsWrite('invoice_customers', arr));
-      if (_isDashboardActive()) updateDashboardMetrics();
+      updateDashboardMetrics();
     }
 
     function saveStoredPayments(arr){
       cloudPush('invoice_payments', _lsWrite('invoice_payments', arr));
-      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
+      updateDashboardMetrics();
+      if (_isDashboardActive()) renderDashboardCharts();
     }
 
     function saveStoredGatePasses(arr){
       cloudPush('invoice_gatepasses', _lsWrite('invoice_gatepasses', arr));
-      if (_isDashboardActive()) updateDashboardMetrics();
+      updateDashboardMetrics();
     }
 
     // ======= FIREBASE CLOUD SYNC =======
@@ -3615,12 +3625,16 @@ table.list-table tbody td {
     }
 
     let _cloudPushErrorShown = false;
+    let _cloudSizeWarnShown  = false;
     function cloudPush(key, value){
       if(!db) return;
       const sizeBytes = new Blob([typeof value === 'string' ? value : JSON.stringify(value)]).size;
       if (sizeBytes > 900_000) {
         console.warn(`cloudPush: '${key}' is ${(sizeBytes/1024).toFixed(0)} KB — approaching Firestore 1 MB doc limit`);
-        showToast(`⚠️ Data for "${key}" is ${(sizeBytes/1024).toFixed(0)} KB — nearing cloud storage limit. Consider archiving old records.`, 'warning');
+        if (!_cloudSizeWarnShown) {
+          _cloudSizeWarnShown = true;
+          showToast(`⚠️ "${key}" is ${(sizeBytes/1024).toFixed(0)} KB — nearing cloud storage limit. Archive old records to avoid sync failures.`, 'warning');
+        }
       }
       db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
         .catch(e => {
@@ -3661,6 +3675,7 @@ table.list-table tbody td {
       } else {
         updateCloudStatus('connected');
         _cloudPushErrorShown = false;
+        _cloudSizeWarnShown  = false; // allow the warning to show again after a successful sync
         if(manual){
           showToast('✓ Loaded '+loaded+' collections from cloud.', 'success');
           location.reload();
@@ -3671,20 +3686,28 @@ table.list-table tbody td {
     async function syncLocalToCloud(){
       if(!db){ showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
       updateCloudStatus('syncing');
-      let pushed = 0, failed = 0;
+      let pushed = 0, failed = 0, skipped = 0;
       for(const key of CLOUD_KEYS){
         const val = localStorage.getItem(key);
-        if(val){
-          try{
-            await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
-            pushed++;
-          }catch(e){ failed++; console.warn('Sync push failed for '+key+':', e); }
+        if(!val) continue;
+        const sizeBytes = new Blob([val]).size;
+        if (sizeBytes > 900_000) {
+          console.warn(`syncLocalToCloud: '${key}' is ${(sizeBytes/1024).toFixed(0)} KB — skipping to avoid Firestore 1 MB rejection`);
+          skipped++;
+          continue;
         }
+        try{
+          await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
+          pushed++;
+        }catch(e){ failed++; console.warn('Sync push failed for '+key+':', e); }
+      }
+      if(skipped > 0){
+        showToast(`⚠️ ${skipped} collection(s) too large to sync (>900 KB). Archive old records first, then retry.`, 'warning');
       }
       if(failed > 0){
         updateCloudStatus('error');
-        showToast('⚠️ Cloud push failed for '+failed+' collections. Your Firestore security rules likely need to allow writes. Go to Firebase Console → Firestore → Rules.', 'error');
-      } else {
+        showToast('⚠️ Cloud push failed for '+failed+' collections. Check Firebase rules in Data Center.', 'error');
+      } else if(pushed > 0) {
         updateCloudStatus('connected');
         showToast('✓ All local data ('+pushed+' collections) pushed to cloud successfully!', 'success');
       }
@@ -3759,37 +3782,38 @@ table.list-table tbody td {
     }
 
     // ======= DASHBOARD STATS & PURE SVG CHARTS =======
-    function updateDashboardMetrics() {
-      const invs = getStoredInvoices();
-      const pays = getStoredPayments();
-      const gps = getStoredGatePasses();
-
-      const billed = invs.reduce((sum, i) => sum + (i.totals?.netAmount || 0), 0);
-      const collected = pays.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const outstanding = billed - collected;
-
-      document.getElementById('stat-billed').textContent = '₹' + formatNum(billed);
-      document.getElementById('stat-collected').textContent = '₹' + formatNum(collected);
-      document.getElementById('stat-outstanding').textContent = '₹' + formatNum(outstanding);
-      document.getElementById('stat-gatepasses').textContent = gps.length;
-
-      const overdueInvs = getOverdueInvoices();
-      const overdueEl = document.getElementById('stat-overdue');
-      const overdueCard = document.getElementById('stat-overdue-card');
-      if (overdueEl) overdueEl.textContent = overdueInvs.length;
-      if (overdueCard) overdueCard.style.borderColor = overdueInvs.length > 0 ? '#ef4444' : 'var(--border-color)';
-
-      // Update unpaid invoice badge in sidebar
-      const unpaidCount = invs.filter(i => (i.status || 'Unpaid') !== 'Paid').length;
+    function _updateSidebarBadge(invs) {
+      const unpaidCount = (invs || getStoredInvoices()).filter(i => (i.status || 'Unpaid') !== 'Paid').length;
       const badge = document.getElementById('unpaid-badge');
       if (badge) {
-        if (unpaidCount > 0) {
-          badge.textContent = unpaidCount;
-          badge.style.display = 'inline-block';
-        } else {
-          badge.style.display = 'none';
-        }
+        badge.textContent = unpaidCount > 0 ? unpaidCount : '';
+        badge.style.display = unpaidCount > 0 ? 'inline-block' : 'none';
       }
+    }
+
+    function updateDashboardMetrics() {
+      const invs = getStoredInvoices();
+      _updateSidebarBadge(invs); // always runs — badge is visible in sidebar on every view
+
+      if (!_isDashboardActive()) return; // heavy panel stats only needed when panel is open
+
+      const pays = getStoredPayments();
+      const gps  = getStoredGatePasses();
+
+      const billed      = invs.reduce((sum, i) => sum + (i.totals?.netAmount || 0), 0);
+      const collected   = pays.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const outstanding = billed - collected;
+
+      document.getElementById('stat-billed').textContent      = '₹' + formatNum(billed);
+      document.getElementById('stat-collected').textContent   = '₹' + formatNum(collected);
+      document.getElementById('stat-outstanding').textContent = '₹' + formatNum(outstanding);
+      document.getElementById('stat-gatepasses').textContent  = gps.length;
+
+      const overdueInvs = getOverdueInvoices();
+      const overdueEl   = document.getElementById('stat-overdue');
+      const overdueCard = document.getElementById('stat-overdue-card');
+      if (overdueEl)   overdueEl.textContent = overdueInvs.length;
+      if (overdueCard) overdueCard.style.borderColor = overdueInvs.length > 0 ? '#ef4444' : 'var(--border-color)';
     }
 
     function renderDashboardCharts() {
@@ -3906,7 +3930,7 @@ table.list-table tbody td {
     }
 
     // ======= CLIENT BASE & CUSTOM PRODUCT DIRECTORY =======
-    function renderCustomersTable() {
+    function renderCustomersTable(keepPage = false) {
       const q = document.getElementById('cust-search').value.trim().toLowerCase();
       let list = getStoredCustomers();
       
@@ -3925,7 +3949,7 @@ table.list-table tbody td {
         return;
       }
 
-      const pageData_customers = _pagSlice(list, 'customers');
+      const pageData_customers = _pagSlice(list, 'customers', keepPage);
       tbody.innerHTML = pageData_customers.map(c => `
         <tr>
           <td>
@@ -4383,7 +4407,7 @@ table.list-table tbody td {
         }).join('');
     }
 
-    function renderPaymentsHistoryTable() {
+    function renderPaymentsHistoryTable(keepPage = false) {
       const all = getStoredPayments().sort((a,b) => b.date.localeCompare(a.date));
       const tbody = document.getElementById('payments-history-tbody');
       
@@ -4394,7 +4418,7 @@ table.list-table tbody td {
         return;
       }
 
-      const pageData_payments = _pagSlice(all, 'payments');
+      const pageData_payments = _pagSlice(all, 'payments', keepPage);
       tbody.innerHTML = pageData_payments.map(p => `
         <tr>
           <td>${p.date}</td>
@@ -4679,7 +4703,7 @@ table.list-table tbody td {
     }
 
     // ======= INVOICE HISTORY VIEW =======
-    function renderHistoryView() {
+    function renderHistoryView(keepPage = false) {
       // Populate customer dropdown
       const histCust = document.getElementById('hist-cust');
       if (histCust && histCust.options.length <= 1) {
@@ -4742,7 +4766,7 @@ table.list-table tbody td {
         return;
       }
 
-      const pageData_history = _pagSlice(data, 'history');
+      const pageData_history = _pagSlice(data, 'history', keepPage);
       tbody.innerHTML = pageData_history.map(inv => {
         const net = inv.totals?.netAmount || 0;
         const paid = inv.paidAmount || 0;
@@ -6311,7 +6335,7 @@ table.list-table tbody td {
     }
 
     // ======= GATE PASS HISTORY =======
-    function renderGPHistoryView() {
+    function renderGPHistoryView(keepPage = false) {
       const q    = (document.getElementById('gph-search')?.value || '').trim().toLowerCase();
       let data   = getStoredGatePasses();
       if (q) data = data.filter(g =>
@@ -6328,7 +6352,7 @@ table.list-table tbody td {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted);">No gate passes found.</td></tr>`;
         return;
       }
-      const pageData_gphistory = _pagSlice(data, 'gphistory');
+      const pageData_gphistory = _pagSlice(data, 'gphistory', keepPage);
       tbody.innerHTML = pageData_gphistory.map(gp => `
         <tr>
           <td style="font-weight:700;color:var(--accent);">${escapeHtml(gp.gpno)}</td>
@@ -6673,8 +6697,8 @@ table.list-table tbody td {
         invoiceDate: _localDateTimeStr(),
         poNumber: '',
         customer: { name: q.customer.name, phone: q.customer.phone, address: q.customer.address, site: q.customer.site, pin: q.customer.pincode||'' },
-        product: { hsnCode: '38245010', hsnDesc: 'READY MIX CONCRETE', productName: 'Ready Mix Concrete', driverName: '', vehicleNo: '' },
-        rows: [{ grade: 'M30', qty: 0, rate: 0, cgst_pct: 9, sgst_pct: 9 }],
+        product: { hsnCode: APP.DEFAULT_HSN_CODE, hsnDesc: APP.DEFAULT_HSN_DESC, productName: APP.DEFAULT_PRODUCT, driverName: '', vehicleNo: '' },
+        rows: [{ grade: 'M30', qty: 0, rate: 0, cgst_pct: APP.DEFAULT_CGST_PCT, sgst_pct: APP.DEFAULT_SGST_PCT }],
         totals: { subTotal: 0, cgstTotal: 0, sgstTotal: 0, tcsAmount: 0, netAmount: 0 },
         amountWords: '', paidAmount: 0, status: 'Unpaid'
       });
@@ -6690,7 +6714,7 @@ table.list-table tbody td {
       showToast('✓ Quote data copied to Invoice Builder.','success');
     }
 
-    function renderQHistoryView(){
+    function renderQHistoryView(keepPage = false){
       const all = getStoredQuotations().sort((a,b)=>b.quoteNo.localeCompare(a.quoteNo));
       const search = (document.getElementById('qh-search')?.value||'').toLowerCase();
       const from = document.getElementById('qh-from')?.value||'';
@@ -6707,7 +6731,7 @@ table.list-table tbody td {
       const tbody = document.getElementById('qhistory-body');
       if(!tbody) return;
       if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No quotations found.</td></tr>'; return; }
-      const pageData_qhistory = _pagSlice(filtered, 'qhistory');
+      const pageData_qhistory = _pagSlice(filtered, 'qhistory', keepPage);
       tbody.innerHTML = pageData_qhistory.map(q=>`
         <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:10px 8px; font-weight:600; color:#4f46e5;">${escapeHtml(q.quoteNo)}</td>
@@ -6918,7 +6942,7 @@ table.list-table tbody td {
       if(sheet) sheet.classList.remove('active-print');
     }
 
-    function renderPOHistoryView(){
+    function renderPOHistoryView(keepPage = false){
       const all=getStoredPOs().sort((a,b)=>b.poNo.localeCompare(a.poNo));
       const search=(document.getElementById('poh-search')?.value||'').toLowerCase();
       const from=document.getElementById('poh-from')?.value||'';
@@ -6935,7 +6959,7 @@ table.list-table tbody td {
       const tbody=document.getElementById('pohistory-body');
       if(!tbody) return;
       if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No purchase orders found.</td></tr>'; return; }
-      const pageData_pohistory = _pagSlice(filtered, 'pohistory');
+      const pageData_pohistory = _pagSlice(filtered, 'pohistory', keepPage);
       tbody.innerHTML=pageData_pohistory.map(p=>`
         <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:10px 8px; font-weight:600; color:#10b981;">${escapeHtml(p.poNo)}</td>
