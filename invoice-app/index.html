@@ -3278,7 +3278,8 @@ table.list-table tbody td {
     let activeClientPricing = [];
 
     // ======= Utilities =======
-    function formatNum(n){ return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    const _numFmt = new Intl.NumberFormat('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+    function formatNum(n){ return _numFmt.format(Number(n||0)); }
     function toNumber(v){ return Number((v||'').toString().replace(/,/g,''))||0; }
     function _pad2(n){ return String(n).padStart(2,'0'); }
     function _localDateTimeStr(d){ const n=d||new Date(); return `${n.getFullYear()}-${_pad2(n.getMonth()+1)}-${_pad2(n.getDate())}T${_pad2(n.getHours())}:${_pad2(n.getMinutes())}`; }
@@ -3303,12 +3304,14 @@ table.list-table tbody td {
     }
 
     // ======= Toast Message =======
+    let _toastTimer = null;
     function showToast(msg, type='success') {
       const t = document.getElementById('toast');
       t.textContent = msg;
       t.className = `toast ${type}`;
       t.style.display = 'block';
-      setTimeout(()=>{ t.style.display='none'; }, APP.TOAST_DURATION_MS);
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(()=>{ t.style.display='none'; }, APP.TOAST_DURATION_MS);
     }
 
     // ======= View Switching Tabs =======
@@ -3321,18 +3324,32 @@ table.list-table tbody td {
       purchaseorder: 'Purchase Order', pohistory: 'PO History'
     };
 
+    // Cached references to avoid repeated DOM scans on every navigation
+    let _activePanel   = null;
+    let _activeMenuBtn = null;
+    let _viewMenuMap   = null; // viewId → .menu-item element, built once
+
+    function _buildViewMenuMap() {
+      _viewMenuMap = {};
+      document.querySelectorAll('.menu-item').forEach(item => {
+        const oc = item.getAttribute('onclick') || '';
+        const m  = oc.match(/switchView\('(\w+)'\)/);
+        if (m) _viewMenuMap[m[1]] = item;
+      });
+    }
+
     function switchView(viewId) {
-      document.querySelectorAll('.view-panel').forEach(v => v.classList.remove('active'));
-      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-      
-      const targetPanel = document.getElementById('view-' + viewId);
-      if (targetPanel) targetPanel.classList.add('active');
-      
-      // Find matches in sidebar buttons
-      const btn = Array.from(document.querySelectorAll('.menu-item')).find(item => 
-        item.getAttribute('onclick') && item.getAttribute('onclick').includes(`'${viewId}'`)
-      );
-      if (btn) btn.classList.add('active');
+      if (!_viewMenuMap) _buildViewMenuMap();
+
+      // Deactivate previous without scanning entire DOM
+      if (_activePanel)   _activePanel.classList.remove('active');
+      if (_activeMenuBtn) _activeMenuBtn.classList.remove('active');
+
+      _activePanel = document.getElementById('view-' + viewId);
+      if (_activePanel) _activePanel.classList.add('active');
+
+      _activeMenuBtn = _viewMenuMap[viewId] || null;
+      if (_activeMenuBtn) _activeMenuBtn.classList.add('active');
 
       // Update mobile top bar label
       const label = document.getElementById('mobile-view-label');
@@ -3435,8 +3452,10 @@ table.list-table tbody td {
       if (_isDashboardActive()) renderDashboardCharts();    // charts only when panel is open
     }
 
+    let _customersGeneration = 0; // bumped on every customer write; loadAutofills skips if unchanged
     function saveStoredCustomers(arr){
       cloudPush('invoice_customers', _lsWrite('invoice_customers', arr));
+      _customersGeneration++;
       updateDashboardMetrics();
     }
 
@@ -3771,9 +3790,9 @@ table.list-table tbody td {
                          'invoice_gatepasses','invoice_seq','gp_seq'].includes(key);
       if(isDataKey){
         updateDashboardMetrics();
-        renderDashboardCharts();
+        if(_isDashboardActive()) renderDashboardCharts();
       }
-      if(key === 'invoice_customers'){ loadAutofills(); populateQCustList(); }
+      if(key === 'invoice_customers'){ _customersGeneration++; loadAutofills(); populateQCustList(); }
       if(key === 'invoice_seq' || key === 'gp_seq'){
         const el = document.getElementById('invoiceNo');
         if(el) el.value = peekNextInvoiceNo();
@@ -3822,33 +3841,29 @@ table.list-table tbody td {
 
       // 1. Render Sales vs Collections SVG Bar Chart (Last 6 Months)
       const months = [];
+      const monthMap = new Map(); // 'YYYY-MM' → entry — O(1) lookup replaces O(6) .find()
       const now = new Date();
       for(let i=5; i>=0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push({
+        const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${_pad2(d.getMonth()+1)}`;
+        const entry = {
           label: d.toLocaleDateString('en-IN', {month:'short'}),
-          year: d.getFullYear(),
-          month: d.getMonth() + 1,
           billed: 0,
           collected: 0
-        });
+        };
+        months.push(entry);
+        monthMap.set(key, entry);
       }
 
       invoices.forEach(inv => {
         if(!inv.invoiceDate) return;
-        const d = new Date(inv.invoiceDate);
-        const y = d.getFullYear();
-        const m = d.getMonth() + 1;
-        const match = months.find(x => x.year === y && x.month === m);
+        const match = monthMap.get(inv.invoiceDate.slice(0,7));
         if(match) match.billed += inv.totals?.netAmount || 0;
       });
 
       payments.forEach(p => {
         if(!p.date) return;
-        const d = new Date(p.date);
-        const y = d.getFullYear();
-        const m = d.getMonth() + 1;
-        const match = months.find(x => x.year === y && x.month === m);
+        const match = monthMap.get(p.date.slice(0,7));
         if(match) match.collected += p.amount || 0;
       });
 
@@ -4268,7 +4283,10 @@ table.list-table tbody td {
     }
 
     // Auto-populating Select Selectors
+    let _autofillsGeneration = -1; // tracks which _customersGeneration we last built dropdowns from
     function loadAutofills() {
+      if (_autofillsGeneration === _customersGeneration) return; // customers unchanged — skip rebuild
+      _autofillsGeneration = _customersGeneration;
       const customers = getStoredCustomers().sort((a,b) => a.name.localeCompare(b.name));
       
       const invSelect = document.getElementById('invoice-client-autofill');
@@ -5319,9 +5337,31 @@ table.list-table tbody td {
     function openSummary(){
       const container=document.getElementById("summaryTables");
       if (!container) return;
+
+      // Single O(n) pass builds all 4 groupings simultaneously
+      const invs = getStoredInvoices();
+      const allGroups = { month:{}, quarter:{}, half:{}, year:{} };
+      invs.forEach(inv => {
+        if(!inv.invoiceDate) return;
+        const d  = new Date(inv.invoiceDate);
+        const y  = d.getFullYear();
+        const mo = d.getMonth();
+        const keys = {
+          month:   `${y}-${mo+1}`,
+          quarter: `${y}-Q${Math.floor(mo/3)+1}`,
+          half:    `${y}-H${mo<6?1:2}`,
+          year:    `${y}`
+        };
+        for(const type in keys){
+          const k=keys[type];
+          if(!allGroups[type][k]) allGroups[type][k]=[];
+          allGroups[type][k].push(inv);
+        }
+      });
+
       container.innerHTML="";
       ["month","quarter","half","year"].forEach(type=>{
-        const groups=groupByPeriod(type);
+        const groups=allGroups[type];
         const table=document.createElement("table");
         table.innerHTML=`<caption style="font-weight:700;margin:6px">${type.toUpperCase()}</caption>
           <thead><tr><th>Period</th><th>No. Invoices</th><th>Parties</th><th>Net</th><th>CGST</th><th>SGST</th></tr></thead>`;
@@ -5705,8 +5745,8 @@ table.list-table tbody td {
         invoiceDate: _localDateTimeStr(),
         poNumber: "",
         customer: { name: "", phone: "", address: "", site: "", pin: "" },
-        product: { hsnCode: "38245010", hsnDesc: "READY MIX CONCRETE", productName: "Ready Mix Concrete", driverName: "", vehicleNo: "" },
-        rows: [{ grade: "M30", qty: 0, rate: 0, cgst_pct: 9, sgst_pct: 9 }],
+        product: { hsnCode: APP.DEFAULT_HSN_CODE, hsnDesc: APP.DEFAULT_HSN_DESC, productName: APP.DEFAULT_PRODUCT, driverName: "", vehicleNo: "" },
+        rows: [{ grade: "M30", qty: 0, rate: 0, cgst_pct: APP.DEFAULT_CGST_PCT, sgst_pct: APP.DEFAULT_SGST_PCT }],
         totals: { subTotal: 0, cgstTotal: 0, sgstTotal: 0, tcsAmount: 0, netAmount: 0 },
         amountWords: "",
         paidAmount: 0,
@@ -6232,12 +6272,13 @@ table.list-table tbody td {
 
     // ======= OVERDUE DETECTION =======
     function getOverdueInvoices() {
-      const today = new Date(); today.setHours(0,0,0,0);
+      const todayStr = _localDateStr();          // 'YYYY-MM-DD' — computed once
+      const todayMs  = Date.parse(todayStr);     // ms timestamp — computed once
       return getStoredInvoices().filter(inv => {
         if ((inv.status || 'Unpaid') === 'Paid') return false;
-        if (inv.dueDate) return new Date(inv.dueDate) < today;
+        if (inv.dueDate) return inv.dueDate.slice(0,10) < todayStr; // ISO string compare
         if (inv.invoiceDate) {
-          const daysDiff = (today - new Date(inv.invoiceDate.slice(0,10))) / 86400000;
+          const daysDiff = (todayMs - Date.parse(inv.invoiceDate.slice(0,10))) / 86400000;
           return daysDiff > 45;
         }
         return false;
