@@ -3214,6 +3214,58 @@ table.list-table tbody td {
       return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
     }
 
+    // ======= Pagination engine =======
+    const _page      = { history:0, customers:0, payments:0, qhistory:0, pohistory:0, gphistory:0 };
+    const _pageTotal = {};
+    const PAGE_SIZE  = 30;
+    let   _keepPage  = false; // true while _pageGo is navigating; suppresses page-reset in _pagSlice
+
+    function _pageGo(key, dir) {
+      const pages = Math.ceil((_pageTotal[key] || 1) / PAGE_SIZE);
+      _page[key]  = Math.max(0, Math.min((_page[key] || 0) + dir, pages - 1));
+      _keepPage   = true;
+      ({ history:  renderHistoryView,
+         customers: renderCustomersTable,
+         payments:  renderPaymentsHistoryTable,
+         qhistory:  renderQHistoryView,
+         pohistory: renderPOHistoryView,
+         gphistory: renderGPHistoryView
+      })[key]?.();
+      _keepPage = false;
+    }
+
+    // Slices an array to the current page and records total for _pagRow.
+    // Resets to page 0 on every fresh filter/render call (unless _keepPage is set).
+    function _pagSlice(arr, key) {
+      if (!_keepPage) _page[key] = 0;
+      _pageTotal[key] = arr.length;
+      const pages = Math.ceil(arr.length / PAGE_SIZE) || 1;
+      if (_page[key] >= pages) _page[key] = pages - 1;
+      const p = _page[key];
+      return arr.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
+    }
+
+    // Returns a full-width table row containing prev/next controls.
+    // Returns '' when all records fit on one page (no controls needed).
+    function _pagRow(key, colSpan) {
+      const total = _pageTotal[key] || 0;
+      if (total <= PAGE_SIZE) return '';
+      const p     = _page[key] || 0;
+      const pages = Math.ceil(total / PAGE_SIZE);
+      const from  = p * PAGE_SIZE + 1;
+      const to    = Math.min((p + 1) * PAGE_SIZE, total);
+      return `<tr><td colspan="${colSpan}" style="padding:0;background:#f8fafc;border-top:1px solid #e2e8f0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;font-size:12px;color:var(--text-muted);">
+          <span>${from}–${to} of <strong style="color:var(--text-main);">${total}</strong> records</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="btn secondary" style="padding:3px 10px;font-size:11px;" onclick="_pageGo('${key}',-1)" ${p===0?'disabled':''}>‹ Prev</button>
+            <span style="font-weight:700;color:var(--text-main);min-width:60px;text-align:center;">Page ${p+1} / ${pages}</span>
+            <button class="btn secondary" style="padding:3px 10px;font-size:11px;" onclick="_pageGo('${key}',1)" ${p>=pages-1?'disabled':''}>Next ›</button>
+          </div>
+        </div>
+      </td></tr>`;
+    }
+
     // ======= Active cached variables =======
     let activeClientPricing = [];
 
@@ -3565,6 +3617,11 @@ table.list-table tbody td {
     let _cloudPushErrorShown = false;
     function cloudPush(key, value){
       if(!db) return;
+      const sizeBytes = new Blob([typeof value === 'string' ? value : JSON.stringify(value)]).size;
+      if (sizeBytes > 900_000) {
+        console.warn(`cloudPush: '${key}' is ${(sizeBytes/1024).toFixed(0)} KB — approaching Firestore 1 MB doc limit`);
+        showToast(`⚠️ Data for "${key}" is ${(sizeBytes/1024).toFixed(0)} KB — nearing cloud storage limit. Consider archiving old records.`, 'warning');
+      }
       db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
         .catch(e => {
           console.warn('Cloud push failed for '+key+':', e);
@@ -3868,7 +3925,8 @@ table.list-table tbody td {
         return;
       }
 
-      tbody.innerHTML = list.map(c => `
+      const pageData_customers = _pagSlice(list, 'customers');
+      tbody.innerHTML = pageData_customers.map(c => `
         <tr>
           <td>
             <div style="font-weight:700; color:var(--primary-light);">${escapeHtml(c.name)}</div>
@@ -3883,7 +3941,7 @@ table.list-table tbody td {
             <button class="btn danger" style="padding:4px 8px; font-size:11px;" onclick="deleteCustomer('${c.id}')">Delete</button>
           </td>
         </tr>
-      `).join('');
+      `).join('') + _pagRow('customers', 4);
     }
 
     function saveCustomer(e) {
@@ -4336,7 +4394,8 @@ table.list-table tbody td {
         return;
       }
 
-      tbody.innerHTML = all.map(p => `
+      const pageData_payments = _pagSlice(all, 'payments');
+      tbody.innerHTML = pageData_payments.map(p => `
         <tr>
           <td>${p.date}</td>
           <td style="font-weight:700;">${escapeHtml(p.customerName)}</td>
@@ -4350,7 +4409,7 @@ table.list-table tbody td {
             <button class="btn danger" style="padding:4px 8px; font-size:11px;" onclick="deletePayment('${p.id}')">Delete</button>
           </td>
         </tr>
-      `).join('');
+      `).join('') + _pagRow('payments', 6);
     }
 
     function savePayment(e) {
@@ -4683,7 +4742,8 @@ table.list-table tbody td {
         return;
       }
 
-      tbody.innerHTML = data.map(inv => {
+      const pageData_history = _pagSlice(data, 'history');
+      tbody.innerHTML = pageData_history.map(inv => {
         const net = inv.totals?.netAmount || 0;
         const paid = inv.paidAmount || 0;
         const due = net - paid;
@@ -4710,7 +4770,7 @@ table.list-table tbody td {
             <button class="btn danger" style="padding:4px 8px;font-size:11px;" onclick="deleteInvoice('${inv.invoiceNo}')">Del</button>
           </td>
         </tr>`;
-      }).join('');
+      }).join('') + _pagRow('history', 9);
     }
 
     function loadInvoiceFromHistory(no) {
@@ -6268,7 +6328,8 @@ table.list-table tbody td {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted);">No gate passes found.</td></tr>`;
         return;
       }
-      tbody.innerHTML = data.map(gp => `
+      const pageData_gphistory = _pagSlice(data, 'gphistory');
+      tbody.innerHTML = pageData_gphistory.map(gp => `
         <tr>
           <td style="font-weight:700;color:var(--accent);">${escapeHtml(gp.gpno)}</td>
           <td style="white-space:nowrap;">${(gp.gpdate || '-').replace('T',' ')}</td>
@@ -6282,7 +6343,7 @@ table.list-table tbody td {
             <button class="btn danger" style="padding:4px 8px;font-size:11px;" onclick="deleteGatePass('${gp.id}')">Del</button>
           </td>
         </tr>
-      `).join('');
+      `).join('') + _pagRow('gphistory', 9);
     }
 
     function deleteGatePass(id) {
@@ -6600,23 +6661,32 @@ table.list-table tbody td {
     function convertQuoteToInvoice(){
       const q = serializeQuotation();
       if(!q.customer.name){ showToast('Save the quotation first.','error'); return; }
-      // Populate invoice form with quote data
-      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
-      se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
-      se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
-      se('customerSite', q.customer.site);
-      // Mark the quotation as converted
+      // Mark the quotation as converted before switching view
       const all = getStoredQuotations();
       const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
       if(idx!==-1){ all[idx].convertedToInvoice=peekNextInvoiceNo(); saveStoredQuotations(all); }
       switchView('invoice');
-      newInvoice();
-      // Re-populate customer after newInvoice resets
-      setTimeout(()=>{
-        se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
-        se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
-        se('customerSite', q.customer.site);
-      }, 50);
+      // Build a new invoice pre-filled with the quote's customer — loadInvoice is synchronous
+      const nextNo = peekNextInvoiceNo();
+      loadInvoice({
+        invoiceNo: nextNo,
+        invoiceDate: _localDateTimeStr(),
+        poNumber: '',
+        customer: { name: q.customer.name, phone: q.customer.phone, address: q.customer.address, site: q.customer.site, pin: q.customer.pincode||'' },
+        product: { hsnCode: '38245010', hsnDesc: 'READY MIX CONCRETE', productName: 'Ready Mix Concrete', driverName: '', vehicleNo: '' },
+        rows: [{ grade: 'M30', qty: 0, rate: 0, cgst_pct: 9, sgst_pct: 9 }],
+        totals: { subTotal: 0, cgstTotal: 0, sgstTotal: 0, tcsAmount: 0, netAmount: 0 },
+        amountWords: '', paidAmount: 0, status: 'Unpaid'
+      });
+      // loadInvoice does not map customer.gstin — set it directly
+      const gstEl = document.getElementById('custGSTIN');
+      if(gstEl && q.customer.gstin) gstEl.value = q.customer.gstin;
+      // Re-enforce readonly state on invoice number
+      const invNoInput = document.getElementById('invoiceNo');
+      if(invoiceNoAutoMode && invNoInput) invNoInput.readOnly = true;
+      // Allow live clock to keep updating date on new invoice
+      const newDateEl = document.getElementById('invoiceDate');
+      if(newDateEl) delete newDateEl.dataset.manuallySet;
       showToast('✓ Quote data copied to Invoice Builder.','success');
     }
 
@@ -6637,7 +6707,8 @@ table.list-table tbody td {
       const tbody = document.getElementById('qhistory-body');
       if(!tbody) return;
       if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No quotations found.</td></tr>'; return; }
-      tbody.innerHTML = filtered.map(q=>`
+      const pageData_qhistory = _pagSlice(filtered, 'qhistory');
+      tbody.innerHTML = pageData_qhistory.map(q=>`
         <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:10px 8px; font-weight:600; color:#4f46e5;">${escapeHtml(q.quoteNo)}</td>
           <td style="padding:10px 8px;">${q.quoteDate ? new Date(q.quoteDate).toLocaleDateString('en-IN') : '-'}</td>
@@ -6653,7 +6724,7 @@ table.list-table tbody td {
             <button class="btn secondary" style="font-size:11px; padding:4px 8px;" onclick="loadQuotation(getStoredQuotations().find(x=>x.quoteNo==='${escapeHtml(q.quoteNo)}')); switchView('quotation'); setTimeout(printQuotation,100);">Print</button>
             <button class="btn" style="font-size:11px; padding:4px 8px; background:#ef4444; color:#fff;" onclick="deleteQuotation('${escapeHtml(q.quoteNo)}')">Del</button>
           </td>
-        </tr>`).join('');
+        </tr>`).join('') + _pagRow('qhistory', 7);
     }
 
     // ======= PURCHASE ORDER MODULE =======
@@ -6864,7 +6935,8 @@ table.list-table tbody td {
       const tbody=document.getElementById('pohistory-body');
       if(!tbody) return;
       if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No purchase orders found.</td></tr>'; return; }
-      tbody.innerHTML=filtered.map(p=>`
+      const pageData_pohistory = _pagSlice(filtered, 'pohistory');
+      tbody.innerHTML=pageData_pohistory.map(p=>`
         <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
           <td style="padding:10px 8px; font-weight:600; color:#10b981;">${escapeHtml(p.poNo)}</td>
           <td style="padding:10px 8px;">${p.poDate?new Date(p.poDate).toLocaleDateString('en-IN'):'-'}</td>
@@ -6879,7 +6951,7 @@ table.list-table tbody td {
             <button class="btn secondary" style="font-size:11px;padding:4px 8px;" onclick="loadPurchaseOrder(getStoredPOs().find(x=>x.poNo==='${escapeHtml(p.poNo)}')); switchView('purchaseorder'); setTimeout(printPurchaseOrder,100);">Print</button>
             <button class="btn" style="font-size:11px;padding:4px 8px;background:#ef4444;color:#fff;" onclick="deletePurchaseOrder('${escapeHtml(p.poNo)}')">Del</button>
           </td>
-        </tr>`).join('');
+        </tr>`).join('') + _pagRow('pohistory', 7);
     }
 
     // ======= Init & Window Load =======
