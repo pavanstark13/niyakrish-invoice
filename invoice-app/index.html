@@ -1827,7 +1827,7 @@ table.list-table tbody td {
               <tr><td>CGST @ 9.0 %</td><td class="rightcell" id="cgstTotal">0.00</td></tr>
               <tr><td>SGST @ 9.0 %</td><td class="rightcell" id="sgstTotal">0.00</td></tr>
               <tr>
-                <td>TCS @ <input id="tcsPct" type="number" step="0.01" value="0.00" min="0" style="width:34px;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:12px;padding:0 2px;background:transparent;" oninput="recalcAll()" title="Enter TCS %"> %</td>
+                <td>TCS @ <input id="tcsPct" type="number" step="0.01" value="0.00" min="0" style="width:34px;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:12px;padding:0 2px;background:transparent;" oninput="recalcAllDebounced()" title="Enter TCS %"> %</td>
                 <td class="rightcell" id="tcsAmount">0.00</td>
               </tr>
               <tr><td style="font-weight:700">Net Amount</td><td class="rightcell" id="netAmount" style="font-weight:700">0.00</td></tr>
@@ -3166,9 +3166,53 @@ table.list-table tbody td {
   <!-- ── SCRIPTS ── -->
   <script>
     // ======= GOOGLE SHEETS INTEGRATION CONFIG =======
-    // Replace with your Google Apps Script Web App deployment URL to enable remote sync.
-    // Leave empty string '' to disable remote sync (gate passes will still save locally).
     const SCRIPT_URL = '';
+
+    // ======= Named constants — change here, updates everywhere =======
+    const APP = Object.freeze({
+      DEFAULT_HSN_CODE:    '38245010',
+      DEFAULT_HSN_DESC:    'READY MIX CONCRETE',
+      DEFAULT_PRODUCT:     'Ready Mix Concrete',
+      DEFAULT_CGST_PCT:    9,
+      DEFAULT_SGST_PCT:    9,
+      INVOICE_SEQ_FLOOR:   779,
+      TOAST_DURATION_MS:   3500,
+      RECALC_DEBOUNCE_MS:  60,
+    });
+
+    // ======= localStorage read cache =======
+    // Avoids re-parsing JSON on every getStored* call.
+    // Invalidated on every write and on incoming realtime sync updates.
+    const _lsCache = Object.create(null);
+
+    function _lsRead(key, defaultJson) {
+      if (key in _lsCache) return _lsCache[key];
+      try { _lsCache[key] = JSON.parse(localStorage.getItem(key) || defaultJson); }
+      catch(e) { _lsCache[key] = JSON.parse(defaultJson); }
+      return _lsCache[key];
+    }
+
+    function _lsWrite(key, val) {
+      _lsCache[key] = val;
+      const json = JSON.stringify(val);
+      localStorage.setItem(key, json);
+      return json; // returned so cloudPush can reuse the serialized string
+    }
+
+    function _lsWriteRaw(key, raw) {
+      delete _lsCache[key]; // raw strings come from external sources — force re-parse on next read
+      localStorage.setItem(key, raw);
+    }
+
+    // Returns true only when the dashboard panel is visible — guards expensive re-renders.
+    function _isDashboardActive() {
+      return document.getElementById('view-dashboard')?.classList.contains('active') ?? false;
+    }
+
+    // Shared customer-name matcher — centralises the normalisation rule.
+    function _nameMatch(a, b) {
+      return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+    }
 
     // ======= Active cached variables =======
     let activeClientPricing = [];
@@ -3316,42 +3360,33 @@ table.list-table tbody td {
     }
 
     // ======= LOCALSTORAGE DATABASE ENGINES =======
-    function getStoredInvoices(){
-      try{ return JSON.parse(localStorage.getItem('invoices')||'[]'); }catch(e){ return []; }
-    }
+    // All reads go through _lsCache (avoids redundant JSON.parse on hot paths).
+    // All writes update the cache first, then persist, then push to cloud.
+    // Dashboard refresh is guarded: only runs when dashboard panel is actually visible.
+
+    function getStoredInvoices()  { return _lsRead('invoices',           '[]'); }
+    function getStoredCustomers() { return _lsRead('invoice_customers',  '[]'); }
+    function getStoredPayments()  { return _lsRead('invoice_payments',   '[]'); }
+    function getStoredGatePasses(){ return _lsRead('invoice_gatepasses', '[]'); }
+
     function saveStoredInvoices(arr){
-      localStorage.setItem('invoices', JSON.stringify(arr));
-      cloudPush('invoices', JSON.stringify(arr));
-      updateDashboardMetrics();
-      renderDashboardCharts();
+      cloudPush('invoices', _lsWrite('invoices', arr));
+      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
     }
 
-    function getStoredCustomers(){
-      try{ return JSON.parse(localStorage.getItem('invoice_customers')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredCustomers(arr){
-      localStorage.setItem('invoice_customers', JSON.stringify(arr));
-      cloudPush('invoice_customers', JSON.stringify(arr));
-      updateDashboardMetrics();
+      cloudPush('invoice_customers', _lsWrite('invoice_customers', arr));
+      if (_isDashboardActive()) updateDashboardMetrics();
     }
 
-    function getStoredPayments(){
-      try{ return JSON.parse(localStorage.getItem('invoice_payments')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredPayments(arr){
-      localStorage.setItem('invoice_payments', JSON.stringify(arr));
-      cloudPush('invoice_payments', JSON.stringify(arr));
-      updateDashboardMetrics();
-      renderDashboardCharts();
+      cloudPush('invoice_payments', _lsWrite('invoice_payments', arr));
+      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
     }
 
-    function getStoredGatePasses(){
-      try{ return JSON.parse(localStorage.getItem('invoice_gatepasses')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredGatePasses(arr){
-      localStorage.setItem('invoice_gatepasses', JSON.stringify(arr));
-      cloudPush('invoice_gatepasses', JSON.stringify(arr));
-      updateDashboardMetrics();
+      cloudPush('invoice_gatepasses', _lsWrite('invoice_gatepasses', arr));
+      if (_isDashboardActive()) updateDashboardMetrics();
     }
 
     // ======= FIREBASE CLOUD SYNC =======
@@ -3560,7 +3595,7 @@ table.list-table tbody td {
       for(const key of CLOUD_KEYS){
         try{
           const val = await cloudPull(key);
-          if(val !== null){ localStorage.setItem(key, val); loaded++; }
+          if(val !== null){ _lsWriteRaw(key, val); loaded++; }
         }catch(e){ failed++; }
       }
       if(failed > 0){
@@ -3627,7 +3662,7 @@ table.list-table tbody td {
             const current = localStorage.getItem(key);
             if(incoming === current) return; // our own write echoing back — skip
 
-            localStorage.setItem(key, incoming);
+            _lsWriteRaw(key, incoming); // persist + invalidate read cache
 
             // Only update UI once the user is authenticated
             if(!sessionStorage.getItem('niyakrish_auth')) return;
@@ -4200,11 +4235,11 @@ table.list-table tbody td {
         
         // Outstanding balance warning
         const billed = getStoredInvoices()
-          .filter(i => (i.customer?.name || '').trim().toLowerCase() === c.name.trim().toLowerCase())
+          .filter(i => _nameMatch(i.customer?.name, c.name))
           .reduce((sum, i) => sum + (i.totals?.netAmount || 0), 0);
         
         const paid = getStoredPayments()
-          .filter(p => (p.customerName || '').trim().toLowerCase() === c.name.trim().toLowerCase())
+          .filter(p => _nameMatch(p.customerName, c.name))
           .reduce((sum, p) => sum + (p.amount || 0), 0);
         
         const bal = billed - paid;
@@ -4268,7 +4303,7 @@ table.list-table tbody td {
 
       // Fetch unpaid invoices
       const invoices = getStoredInvoices().filter(i => 
-        (i.customer?.name || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(i.customer?.name, custName)
       );
 
       const unpaidList = invoices.filter(i => {
@@ -4356,7 +4391,7 @@ table.list-table tbody td {
       } else {
         // General Payment: split dynamically across client's oldest unpaid invoices first
         const clientInvoices = allInvoices.filter(i => 
-          (i.customer?.name || '').trim().toLowerCase() === customerName.trim().toLowerCase()
+          _nameMatch(i.customer?.name, customerName)
         ).sort((a,b) => (a.invoiceDate || '').localeCompare(b.invoiceDate || ''));
 
         let remPayment = amount;
@@ -4401,7 +4436,7 @@ table.list-table tbody td {
       } else {
         // Reverse General Payment allocation (subtract from newest paid client invoices down)
         const clientInvoices = allInvoices.filter(i => 
-          (i.customer?.name || '').trim().toLowerCase() === p.customerName.trim().toLowerCase()
+          _nameMatch(i.customer?.name, p.customerName)
         ).sort((a,b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || '')); // Newest first
 
         let remRev = p.amount;
@@ -4468,7 +4503,7 @@ table.list-table tbody td {
       }
 
       // Populate profile info if available
-      const customerBase = getStoredCustomers().find(c => c.name.trim().toLowerCase() === custName.trim().toLowerCase());
+      const customerBase = getStoredCustomers().find(c => _nameMatch(c.name, custName));
       if(customerBase) {
         if(profileName) profileName.textContent = customerBase.name;
         if(profilePhone) profilePhone.textContent = 'Phone: ' + (customerBase.phone || '-');
@@ -4483,10 +4518,10 @@ table.list-table tbody td {
 
       // Build Ledger Statement List
       const invoices = getStoredInvoices().filter(i => 
-        (i.customer?.name || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(i.customer?.name, custName)
       );
       const payments = getStoredPayments().filter(p => 
-        (p.customerName || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(p.customerName, custName)
       );
 
       // Merge transactions chronologically
@@ -4609,7 +4644,7 @@ table.list-table tbody td {
       );
       if (dateFrom) data = data.filter(i => i.invoiceDate && i.invoiceDate.slice(0,10) >= dateFrom);
       if (dateTo)   data = data.filter(i => i.invoiceDate && i.invoiceDate.slice(0,10) <= dateTo);
-      if (custFilter) data = data.filter(i => (i.customer?.name || '').trim().toLowerCase() === custFilter.trim().toLowerCase());
+      if (custFilter) data = data.filter(i => _nameMatch(i.customer?.name, custFilter));
       if (statusFilter) data = data.filter(i => (i.status || 'Unpaid').toLowerCase() === statusFilter.toLowerCase());
 
       data.sort((a,b) => String(b.invoiceNo || '').localeCompare(String(a.invoiceNo || '')));
@@ -4949,8 +4984,8 @@ table.list-table tbody td {
       const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const headers = ['Date','Type','Reference','Debit (Invoice ₹)','Credit (Payment ₹)','Running Balance ₹'];
       let csv = headers.map(esc).join(',') + '\n';
-      let invs = getStoredInvoices().filter(i => (i.customer?.name||'').trim().toLowerCase() === custName.trim().toLowerCase());
-      let pays = getStoredPayments().filter(p => (p.customerName||'').trim().toLowerCase() === custName.trim().toLowerCase());
+      let invs = getStoredInvoices().filter(i => _nameMatch(i.customer?.name, custName));
+      let pays = getStoredPayments().filter(p => _nameMatch(p.customerName, custName));
       const txs = [];
       invs.forEach(i => txs.push({ date: i.invoiceDate?i.invoiceDate.slice(0,10):'', type:'Invoice', ref:i.invoiceNo, debit:i.totals?.netAmount||0, credit:0 }));
       pays.forEach(p => txs.push({ date:p.date, type:`Payment (${p.paymentMode})`, ref:p.refNo||'Receipt', debit:0, credit:p.amount }));
@@ -5067,7 +5102,7 @@ table.list-table tbody td {
       if (!custName) return false;
 
       const all = getStoredCustomers();
-      const exists = all.find(c => c.name.trim().toLowerCase() === custName.toLowerCase());
+      const exists = all.find(c => _nameMatch(c.name, custName));
       if (exists) {
         // Customer already in DB — update rates if new grades appear
         const idx = all.indexOf(exists);
@@ -5167,9 +5202,18 @@ table.list-table tbody td {
       if(!document.querySelector('#itemsBody tr')) addRow();
       recalcAll();
     }
+    // Debounced wrapper — used for interactive input events only.
+    // Synchronous recalcAll() is still called directly wherever code needs immediate totals.
+    let _recalcTimer = null;
+    function recalcAllDebounced() {
+      clearTimeout(_recalcTimer);
+      _recalcTimer = setTimeout(recalcAll, APP.RECALC_DEBOUNCE_MS);
+    }
+
     function setupRowListeners(ctx){
       const root = ctx || document;
-      root.querySelectorAll('.item-qty, .item-rate, .item-disc, .item-cgst, .item-sgst').forEach(i=> i.addEventListener('input', recalcAll));
+      root.querySelectorAll('.item-qty, .item-rate, .item-disc, .item-cgst, .item-sgst')
+        .forEach(i => i.addEventListener('input', recalcAllDebounced));
     }
 
     /* ========= Summary Functions ========= */
@@ -5198,16 +5242,14 @@ table.list-table tbody td {
         table.innerHTML=`<caption style="font-weight:700;margin:6px">${type.toUpperCase()}</caption>
           <thead><tr><th>Period</th><th>No. Invoices</th><th>Parties</th><th>Net</th><th>CGST</th><th>SGST</th></tr></thead>`;
         const tb=document.createElement("tbody");
-        Object.entries(groups).forEach(([k,v])=>{
-          tb.innerHTML+=`<tr>
+        tb.innerHTML = Object.entries(groups).map(([k,v])=>`<tr>
             <td>${k}</td>
             <td>${v.length}</td>
-            <td>${v.map(x=>x.customer?.name).join(", ")}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.netAmount,0))}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.cgstTotal,0))}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.sgstTotal,0))}</td>
-          </tr>`;
-        });
+            <td>${v.map(x=>escapeHtml(x.customer?.name||'')).join(", ")}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.netAmount||0),0))}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.cgstTotal||0),0))}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.sgstTotal||0),0))}</td>
+          </tr>`).join('');
         table.appendChild(tb);container.appendChild(table);
       });
       const summaryModal = document.getElementById("summaryModal");
@@ -5503,7 +5545,7 @@ table.list-table tbody td {
       }
 
       if(custSelect) {
-        data = data.filter(inv => (inv.customer?.name || '').trim().toLowerCase() === custSelect.trim().toLowerCase());
+        data = data.filter(inv => _nameMatch(inv.customer?.name, custSelect));
       }
 
       if(statusSelect) {
@@ -6263,8 +6305,7 @@ table.list-table tbody td {
     }
 
     function getCompanySettings() {
-      try { return JSON.parse(localStorage.getItem('company_settings') || 'null') || getDefaultCompanySettings(); }
-      catch(e) { return getDefaultCompanySettings(); }
+      return _lsRead('company_settings', 'null') || getDefaultCompanySettings();
     }
 
     function saveCompanySettings(e) {
@@ -6282,8 +6323,7 @@ table.list-table tbody td {
         bankBranch: document.getElementById('cs-bank-branch').value.trim(),
         logoUrl:    document.getElementById('cs-logo-url').value.trim()
       };
-      localStorage.setItem('company_settings', JSON.stringify(s));
-      cloudPush('company_settings', JSON.stringify(s));
+      cloudPush('company_settings', _lsWrite('company_settings', s));
       applyCompanySettings(s);
       showToast('✓ Company settings saved & applied to all invoices', 'success');
     }
@@ -6377,8 +6417,8 @@ table.list-table tbody td {
     });
 
     // ======= QUOTATION MODULE =======
-    function getStoredQuotations(){ try{ return JSON.parse(localStorage.getItem('quotations')||'[]'); }catch(e){ return []; } }
-    function saveStoredQuotations(arr){ localStorage.setItem('quotations', JSON.stringify(arr)); cloudPush('quotations', JSON.stringify(arr)); }
+    function getStoredQuotations(){ return _lsRead('quotations', '[]'); }
+    function saveStoredQuotations(arr){ cloudPush('quotations', _lsWrite('quotations', arr)); }
 
     function getQuoteSeq(){ return parseInt(localStorage.getItem('quote_seq')||'0',10); }
     function setQuoteSeq(v){ localStorage.setItem('quote_seq', String(v)); cloudPush('quote_seq', String(v)); }
@@ -6617,8 +6657,8 @@ table.list-table tbody td {
     }
 
     // ======= PURCHASE ORDER MODULE =======
-    function getStoredPOs(){ try{ return JSON.parse(localStorage.getItem('purchase_orders')||'[]'); }catch(e){ return []; } }
-    function saveStoredPOs(arr){ localStorage.setItem('purchase_orders', JSON.stringify(arr)); cloudPush('purchase_orders', JSON.stringify(arr)); }
+    function getStoredPOs(){ return _lsRead('purchase_orders', '[]'); }
+    function saveStoredPOs(arr){ cloudPush('purchase_orders', _lsWrite('purchase_orders', arr)); }
 
     function getPOSeq(){ return parseInt(localStorage.getItem('po_seq')||'0',10); }
     function setPOSeq(v){ localStorage.setItem('po_seq', String(v)); cloudPush('po_seq', String(v)); }
