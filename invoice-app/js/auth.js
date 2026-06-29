@@ -78,7 +78,11 @@ async function changeAppPassword(event) {
 function showApp(username) {
   document.getElementById('login-overlay').classList.add('hidden');
   const el = document.getElementById('logged-in-user');
-  if (el) el.textContent = '👤 ' + username;
+  if (el) {
+    const span = el.querySelector('span');
+    if (span) span.textContent = username;
+    else el.textContent = username;
+  }
 }
 
 function hideApp() {
