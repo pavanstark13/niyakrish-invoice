@@ -693,7 +693,21 @@
         box-shadow: none !important;
         padding: 2mm !important;
         margin: 0 !important;
+        color: #000 !important;
       }
+      /* Force ALL text inside invoice sheet to solid black in print */
+      .sheet, .sheet *, .sheet label, .sheet p, .sheet td, .sheet th,
+      .sheet input, .sheet textarea, .sheet span, .sheet div,
+      .sheet .addr, .sheet .small, .sheet .rightcell, .sheet .company {
+        color: #000 !important;
+        -webkit-text-fill-color: #000 !important;
+        opacity: 1 !important;
+      }
+      .sheet .header, .sheet .box, .sheet .bank, .sheet .summary,
+      .sheet .terms, .sheet .sign, .sheet .sign-right {
+        border-color: #000 !important;
+      }
+      .sheet table.items th { background: #e8e8e8 !important; font-weight: 700 !important; }
       /* Tighten spacing so content fits one page */
       .sheet .header { min-height: auto !important; }
       .sheet .field-row { margin-top: 4px !important; }
@@ -1419,13 +1433,38 @@
 /* ── Form inputs ──────────────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 
-label {
+/* Only apply to app-UI labels — exclude invoice sheet and gate pass */
+label:not(.sheet *):not(.gp *):not(.f *):not(.gp-tc *) {
   font-size: 10.5px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.6px !important;
   color: #94a3b8 !important;
 }
+
+/* ── Invoice sheet — force full-darkness for screen AND print ──── */
+.sheet, .sheet * {
+  color: #000 !important;
+}
+.sheet label {
+  color: #000 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 700 !important;
+  font-size: inherit !important;
+}
+.sheet input, .sheet textarea, .sheet select {
+  color: #000 !important;
+  border-color: #ccc !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+.sheet table th { font-weight: 700 !important; color: #000 !important; }
+.sheet table td { color: #000 !important; }
+.sheet .company  { font-weight: 800 !important; color: #000 !important; }
+.sheet .rightcell{ color: #000 !important; }
+.sheet .small    { color: #333 !important; }
 
 input[type="text"]:not(.sheet input):not(.gp input):not(.gp-tc input):not(.f input),
 input[type="number"]:not(.sheet input):not(.gp input):not(.gp-tc input),
@@ -2053,7 +2092,7 @@ tr.pag-row button:hover {
                 <input id="custPhone" type="text"/>
               </div>
               <div style="width:150px">
-                <label>GSTIN &nbsp;<span id="gstin-badge" style="font-size:9px;font-weight:700;"></span></label>
+                <label>GSTIN &nbsp;<span id="gstin-badge" class="no-print" style="font-size:9px;font-weight:700;"></span></label>
                 <input id="custGSTIN" type="text" style="width:100%;text-transform:uppercase;" oninput="validateGSTIN(this); lookupCustomerByGSTINInvoice();" placeholder="29AAKCN0823D1ZM"/>
               </div>
             </div>
@@ -3600,45 +3639,62 @@ tr.pag-row button:hover {
 
     // ---- GSTIN API lookup (for brand-new customers not in database) ----
     function _parseGSTINResponse(d) {
-      // Handle NIC / appyflow / activeinfotech response shapes
-      const info = d.taxpayerInfo || d.data || d;
-      const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || '';
-      const legalName = info.lgnm      || info.legalName  || info.legal_name  || '';
-      const name      = tradeName || legalName;
-      if (!name) throw new Error('No business name in response');
+      if (!d || typeof d !== 'object') return null;
+      // Handle NIC / appyflow / gstin.app / activeinfotech / masters-india response shapes
+      const info = d.taxpayerInfo || d.data?.taxpayerInfo || d.data || d.result || d;
+      if (!info || typeof info !== 'object') return null;
+
+      const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || info.tradename || '';
+      const legalName = info.lgnm      || info.legalName  || info.legal_name  || info.legalname || '';
+      const name      = (tradeName || legalName || '').trim();
+      if (!name) return null;
 
       let address = '';
-      if (info.pradr) {
-        const a = info.pradr.addr || info.pradr;
-        address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean).join(', ');
+      const pra = info.pradr;
+      if (pra) {
+        const a = pra.addr || pra;
+        address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd, a.state]
+          .filter(Boolean).join(', ');
       }
-      if (!address) address = info.address || info.principalAddress || '';
+      if (!address) address = (info.address || info.principalAddress || info.principal_place_of_business || '').trim();
 
-      const pincode = (info.pradr?.addr?.pncd) || info.pncd || info.pincode || '';
-      const state   = info.stj || info.state || '';
-      return { name, address, pincode, state };
+      const pincode = info.pradr?.addr?.pncd || info.pradr?.pncd || info.pncd || info.pincode || '';
+      const state   = info.stj || info.state  || info.stateName || '';
+      return { name, address: address || state, pincode, state };
     }
 
     async function _fetchGSTINDetails(gstin) {
-      // Build target URL for appyflow.in (free Indian GST API)
-      const target = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`;
+      // Primary: appyflow.in free GST API
+      const primary   = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`;
+      // Secondary: sheet.best proxy to appyflow (avoids CORS)
+      const secondary = `https://api.gstin.app/v1/verify?gstin=${encodeURIComponent(gstin)}`;
 
-      // Try directly first (works if they add CORS headers), then via two CORS proxies
-      const attempts = [
-        { url: target, raw: true },
-        { url: `https://corsproxy.io/?url=${encodeURIComponent(target)}`, raw: true },
-        { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, raw: true }
+      // Try each endpoint through direct + CORS proxies
+      const proxies = [
+        (u) => u,
+        (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
       ];
 
+      const endpoints = [primary, secondary];
       let lastErr;
-      for (const { url } of attempts) {
-        try {
-          const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(8000) });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          const d = await res.json();
-          return _parseGSTINResponse(d);
-        } catch(e) {
-          lastErr = e;
+      for (const endpoint of endpoints) {
+        for (const proxyFn of proxies) {
+          const url = proxyFn(endpoint);
+          try {
+            const res = await fetch(url, {
+              method: 'GET',
+              headers: { 'Accept': 'application/json' },
+              signal: AbortSignal.timeout(7000)
+            });
+            if (!res.ok) continue;
+            const d = await res.json();
+            const parsed = _parseGSTINResponse(d);
+            if (parsed) return parsed;
+          } catch(e) {
+            lastErr = e;
+          }
         }
       }
       throw lastErr || new Error('All GST lookup attempts failed');
