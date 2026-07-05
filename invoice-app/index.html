@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- Firebase compat SDK (v9 compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -2437,10 +2434,10 @@ table.list-table tbody td {
         </div>
       </div>
 
-      <!-- Cloud Sync Block — password protected -->
+      <!-- Secure Server Sync Block - password protected -->
       <div class="card" style="margin-top:20px; border-color:#6366f1;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0;">☁️ Firebase Cloud Sync</h3>
+          <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0;">Secure Server Sync</h3>
           <span id="fb-lock-badge" style="font-size:11px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:12px; padding:2px 10px; font-weight:700;">🔒 Locked</span>
         </div>
         <div id="cloud-sync-status" style="font-size:12px; font-weight:700; margin-bottom:12px; color:#6b7280;">💾 Not Connected</div>
@@ -2448,12 +2445,12 @@ table.list-table tbody td {
         <!-- Locked state -->
         <div id="fb-locked-panel" style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:16px; text-align:center;">
           <div style="font-size:13px; color:#78350f; margin-bottom:12px; line-height:1.6;">
-            🔒 Firebase configuration is admin-protected.<br>
-            <span style="font-size:11px; color:#92400e;">Enter the admin password to access sync settings.</span>
+            Server backup actions are admin-protected.<br>
+            <span style="font-size:11px; color:#92400e;">Enter the admin password to pull, push, or wipe server data.</span>
           </div>
           <div style="display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;">
-            <input type="password" id="fb-unlock-pass" placeholder="Admin password" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; width:180px;" onkeydown="if(event.key==='Enter') unlockFirebaseSettings()">
-            <button onclick="unlockFirebaseSettings()" style="padding:6px 16px; font-size:12px; background:#6366f1; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">🔓 Unlock</button>
+            <input type="password" id="fb-unlock-pass" placeholder="Admin password" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; width:180px;" onkeydown="if(event.key==='Enter') unlockServerSettings()">
+            <button onclick="unlockServerSettings()" style="padding:6px 16px; font-size:12px; background:#6366f1; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">🔓 Unlock</button>
           </div>
           <div id="fb-unlock-err" style="font-size:11px; color:#dc2626; margin-top:6px; min-height:16px;"></div>
         </div>
@@ -2462,39 +2459,18 @@ table.list-table tbody td {
         <div id="fb-config-panel" style="display:none;">
           <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; padding:8px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
             <span style="font-size:11px; color:#065f46; font-weight:600;">🔓 Admin access granted — auto-locks in 5 min</span>
-            <button onclick="lockFirebaseSettings()" style="font-size:11px; padding:3px 10px; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; background:#fff; color:#065f46; font-weight:600;">🔒 Lock Now</button>
+            <button onclick="lockServerSettings()" style="font-size:11px; padding:3px 10px; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; background:#fff; color:#065f46; font-weight:600;">🔒 Lock Now</button>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">API Key</label>
-              <input type="text" id="fb-apiKey" placeholder="AIzaSy…" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Auth Domain</label>
-              <input type="text" id="fb-authDomain" placeholder="your-app.firebaseapp.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Project ID</label>
-              <input type="text" id="fb-projectId" placeholder="your-project-id" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Storage Bucket</label>
-              <input type="text" id="fb-storageBucket" placeholder="your-app.appspot.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Messaging Sender ID</label>
-              <input type="text" id="fb-messagingSenderId" placeholder="123456789" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">App ID</label>
-              <input type="text" id="fb-appId" placeholder="1:123:web:abc…" style="font-size:12px;">
+          <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:6px; padding:12px; margin-bottom:12px;">
+            <div style="font-size:12px; color:#374151; line-height:1.5;">
+              Data is stored on this backend in a server-side, CSRF-protected SQLite database. Browser storage is only a working cache for fast invoice editing.
             </div>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn accent" style="background:#6366f1; justify-content:center;" onclick="saveFirebaseConfig()">💾 Save &amp; Connect</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="syncLocalToCloud()">⬆ Push Local → Cloud</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="loadFromCloud(true)">⬇ Pull Cloud → Local</button>
-            <button class="btn secondary danger" style="justify-content:center;" onclick="disconnectFirebase()">✖ Disconnect</button>
+            <button class="btn accent" style="background:#6366f1; justify-content:center;" onclick="testServerConnection()">Test Backend</button>
+            <button class="btn secondary" style="justify-content:center;" onclick="syncLocalToCloud()">Push Local to Server</button>
+            <button class="btn secondary" style="justify-content:center;" onclick="loadFromCloud(true)">Pull Server to Local</button>
+            <button class="btn secondary danger" style="justify-content:center;" onclick="wipeServerData()">Wipe Server Data</button>
           </div>
         </div>
       </div>
@@ -2595,7 +2571,7 @@ table.list-table tbody td {
               <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
                 <div style="flex:1; min-width:180px;">
                   <input type="file" id="cs-logo-file" accept="image/*" onchange="previewLogoUpload(this)" style="font-size:12px; margin-bottom:4px; width:100%;">
-                  <div style="font-size:10px; color:#6b7280;">PNG / JPG / SVG — stored in cloud, no hosting needed</div>
+                  <div style="font-size:10px; color:#6b7280;">PNG / JPG / SVG - stored inside server-backed company settings</div>
                   <button type="button" onclick="clearLogoUpload()" style="margin-top:6px; font-size:10px; padding:2px 8px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; color:#6b7280;">✕ Remove Logo</button>
                 </div>
                 <div id="cs-logo-preview-box" style="width:100px; height:70px; border:1px dashed #d1d5db; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#f8fafc; flex-shrink:0;">
@@ -3361,7 +3337,7 @@ table.list-table tbody td {
 
     // ======= LOCALSTORAGE DATABASE ENGINES =======
     // All reads go through _lsCache (avoids redundant JSON.parse on hot paths).
-    // All writes update the cache first, then persist, then push to cloud.
+    // All writes update the cache first, then persist, then push to the backend.
     // Dashboard refresh is guarded: only runs when dashboard panel is actually visible.
 
     function getStoredInvoices()  { return _lsRead('invoices',           '[]'); }
@@ -3389,19 +3365,36 @@ table.list-table tbody td {
       if (_isDashboardActive()) updateDashboardMetrics();
     }
 
-    // ======= FIREBASE CLOUD SYNC =======
-    let db = null;
+    // ======= SECURE SERVER SYNC =======
     const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','gp_seq','company_settings','quotations','purchase_orders','quote_seq','po_seq'];
+    const SERVER_AUTH = { authenticated: false, username: null, csrfToken: null };
 
-    // ── CUSTOM AUTH (no external service) ──
-    // Default credentials — change via Settings > Change Password
-    // Default: username=admin  password=Niyakrish@690
-    const DEFAULT_USER = 'admin';
-    const DEFAULT_PASS_HASH = 'a4a3c3e8b1f2d6e7c9b0a5f4e2d1c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4a3c2'; // placeholder, real hash set below
+    async function apiFetch(path, options = {}){
+      const headers = Object.assign({ 'Accept': 'application/json' }, options.headers || {});
+      if(options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      if(SERVER_AUTH.csrfToken && options.method && options.method !== 'GET'){
+        headers['X-CSRF-Token'] = SERVER_AUTH.csrfToken;
+      }
+      const res = await fetch(path, Object.assign({}, options, {
+        headers,
+        credentials: 'same-origin',
+      }));
+      let data = null;
+      try{ data = await res.json(); }catch(e){}
+      if(!res.ok){
+        const message = data?.detail || data?.message || 'Server request failed';
+        throw new Error(Array.isArray(message) ? message.map(x => x.msg || x).join(', ') : message);
+      }
+      return data;
+    }
 
-    async function sha256(str){
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    async function refreshServerSession(){
+      const session = await apiFetch('/api/session');
+      SERVER_AUTH.authenticated = !!session.authenticated;
+      SERVER_AUTH.username = session.username || null;
+      SERVER_AUTH.csrfToken = session.csrfToken || null;
+      updateCloudStatus(SERVER_AUTH.authenticated ? 'connected' : 'offline');
+      return SERVER_AUTH.authenticated;
     }
 
     async function doLogin(){
@@ -3412,38 +3405,51 @@ table.list-table tbody td {
       if(!user || !pass){ err.textContent = 'Enter username and password.'; return; }
       btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-
-      const inputHash = await sha256(user + ':' + pass);
-      if(user === expectedUser && inputHash === expectedHash){
+      try{
+        const result = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username: user, password: pass }),
+        });
+        SERVER_AUTH.authenticated = true;
+        SERVER_AUTH.username = result.username;
+        SERVER_AUTH.csrfToken = result.csrfToken;
         sessionStorage.setItem('niyakrish_auth', '1');
-        showApp(user);
-        // Pull latest cloud data then start real-time listeners
-        if(db){
-          btn.textContent = 'Loading data…';
-          await loadFromCloud(false);
-          applyCompanySettings(getCompanySettings());
-          updateDashboardMetrics();
-          renderDashboardCharts();
-          loadAutofills();
-          const invNoInput = document.getElementById('invoiceNo');
-          if(invNoInput) invNoInput.value = peekNextInvoiceNo();
-          refreshActiveView();
-          startRealtimeSync(); // keep all devices in sync from now on
-        }
+        showApp(result.username);
+        btn.textContent = 'Loading data...';
+        await loadFromCloud(false);
+        applyCompanySettings(getCompanySettings());
+        updateDashboardMetrics();
+        renderDashboardCharts();
+        loadAutofills();
+        const invNoInput = document.getElementById('invoiceNo');
+        if(invNoInput) invNoInput.value = peekNextInvoiceNo();
+        refreshActiveView();
+        startRealtimeSync();
         btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        err.textContent = 'Incorrect username or password.';
+      }catch(e){
+        SERVER_AUTH.authenticated = false;
+        SERVER_AUTH.username = null;
+        SERVER_AUTH.csrfToken = null;
+        err.textContent = e.message || 'Incorrect username or password.';
         btn.disabled = false; btn.textContent = 'Sign In';
       }
     }
 
-    function doLogout(){
+    async function doLogout(){
+      try{
+        if(SERVER_AUTH.authenticated){
+          await apiFetch('/api/auth/logout', { method: 'POST', body: '{}' });
+        }
+      }catch(e){
+        console.warn('Logout request failed:', e);
+      }
       sessionStorage.removeItem('niyakrish_auth');
+      SERVER_AUTH.authenticated = false;
+      SERVER_AUTH.username = null;
+      SERVER_AUTH.csrfToken = null;
       stopRealtimeSync();
       hideApp();
+      updateCloudStatus('offline');
     }
 
     async function changeAppPassword(event){
@@ -3454,23 +3460,25 @@ table.list-table tbody td {
       const confPass = document.getElementById('cp-confirm').value;
       if(!curPass || !newUser || !newPass){ showToast('Fill all fields.','error'); return; }
       if(newPass !== confPass){ showToast('New passwords do not match.','error'); return; }
-      if(newPass.length < 6){ showToast('Password must be at least 6 characters.','error'); return; }
+      if(newPass.length < 12){ showToast('Password must be at least 12 characters.','error'); return; }
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-      const curHash = await sha256(expectedUser + ':' + curPass);
-
-      if(curHash !== expectedHash){ showToast('Current password is incorrect.','error'); return; }
-
-      const newHash = await sha256(newUser + ':' + newPass);
-      const newCreds = JSON.stringify({ username: newUser, passHash: newHash });
-      localStorage.setItem('app_credentials', newCreds);
-      cloudPush('app_credentials', newCreds); // sync to all devices
-      document.getElementById('cp-current').value = '';
-      document.getElementById('cp-new').value = '';
-      document.getElementById('cp-confirm').value = '';
-      showToast('✓ Login credentials updated successfully!','success');
+      try{
+        await apiFetch('/api/auth/password', {
+          method: 'POST',
+          body: JSON.stringify({
+            current_password: curPass,
+            username: newUser,
+            new_password: newPass,
+          }),
+        });
+        document.getElementById('cp-current').value = '';
+        document.getElementById('cp-new').value = '';
+        document.getElementById('cp-confirm').value = '';
+        showToast('Login credentials updated. Please sign in again.','success');
+        await doLogout();
+      }catch(e){
+        showToast(e.message || 'Could not update password.','error');
+      }
     }
 
     function showApp(username){
@@ -3487,109 +3495,58 @@ table.list-table tbody td {
       if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
     }
 
-    function checkAuth(){
-      if(sessionStorage.getItem('niyakrish_auth')){
-        const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-        showApp(stored ? stored.username : DEFAULT_USER);
-        return true;
+    async function checkAuth(){
+      try{
+        const ok = await refreshServerSession();
+        if(ok){
+          sessionStorage.setItem('niyakrish_auth', '1');
+          showApp(SERVER_AUTH.username);
+          return true;
+        }
+      }catch(e){
+        console.warn('Session check failed:', e);
       }
+      sessionStorage.removeItem('niyakrish_auth');
+      SERVER_AUTH.authenticated = false;
+      SERVER_AUTH.username = null;
+      SERVER_AUTH.csrfToken = null;
+      hideApp();
       return false;
     }
 
-    // Default config — overridable via Data Center UI
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAd0FzunhKRf_Mv65awqB86DAeaTif6_oE",
-      authDomain: "niyakrish-invoice.firebaseapp.com",
-      projectId: "niyakrish-invoice",
-      storageBucket: "niyakrish-invoice.firebasestorage.app",
-      messagingSenderId: "1007805250679",
-      appId: "1:1007805250679:web:f0ea00778ab3da8871da72"
-    };
-
-    function initFirebase(){
-      const stored = localStorage.getItem('firebase_config');
-      const cfg = stored ? stored : JSON.stringify(DEFAULT_FIREBASE_CONFIG);
-      if(!stored) localStorage.setItem('firebase_config', cfg);
-      try{
-        const config = JSON.parse(cfg);
-        if(!firebase.apps.length) firebase.initializeApp(config);
-        db = firebase.firestore();
-        updateCloudStatus('connected');
-        populateFirebaseForm(config);
-      }catch(e){
-        db = null;
-        updateCloudStatus('error');
-        console.warn('Firebase init failed:', e);
-      }
-    }
-
-    function populateFirebaseForm(cfg){
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el && cfg[k]) el.value = cfg[k];
-      });
-    }
-
-    function saveFirebaseConfig(){
-      const config = {
-        apiKey: document.getElementById('fb-apiKey').value.trim(),
-        authDomain: document.getElementById('fb-authDomain').value.trim(),
-        projectId: document.getElementById('fb-projectId').value.trim(),
-        storageBucket: document.getElementById('fb-storageBucket').value.trim(),
-        messagingSenderId: document.getElementById('fb-messagingSenderId').value.trim(),
-        appId: document.getElementById('fb-appId').value.trim(),
-      };
-      if(!config.apiKey || !config.projectId){ alert('API Key and Project ID are required.'); return; }
-      localStorage.setItem('firebase_config', JSON.stringify(config));
-      // Re-init (apps can only be initialized once per page load)
-      if(!firebase.apps.length){
-        try{ firebase.initializeApp(config); db = firebase.firestore(); updateCloudStatus('connected'); }
-        catch(e){ updateCloudStatus('error'); alert('Firebase error: '+e.message); }
-      } else {
-        db = firebase.app().firestore();
-        updateCloudStatus('connected');
-      }
-    }
-
-    function disconnectFirebase(){
-      if(!confirm('Remove Firebase connection from this device?')) return;
-      localStorage.removeItem('firebase_config');
-      db = null;
-      updateCloudStatus('offline');
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el) el.value = '';
-      });
-    }
-
     let _cloudPushErrorShown = false;
-    function cloudPush(key, value){
-      if(!db) return;
-      db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
-        .catch(e => {
-          console.warn('Cloud push failed for '+key+':', e);
-          updateCloudStatus('error');
-          if(!_cloudPushErrorShown){
-            _cloudPushErrorShown = true;
-            showToast('⚠️ Cloud save failed — check Firebase rules or connection. Data saved locally only.', 'error');
-          }
+    async function cloudPush(key, value){
+      if(!SERVER_AUTH.authenticated) return;
+      try{
+        await apiFetch('/api/data/' + encodeURIComponent(key), {
+          method: 'PUT',
+          body: JSON.stringify({ value }),
         });
+        updateCloudStatus('connected');
+        _cloudPushErrorShown = false;
+      }catch(e){
+        console.warn('Server push failed for '+key+':', e);
+        updateCloudStatus('error');
+        if(!_cloudPushErrorShown){
+          _cloudPushErrorShown = true;
+          showToast('Server save failed. Data is still saved locally in this browser.', 'error');
+        }
+      }
     }
 
     async function cloudPull(key){
-      if(!db) return null;
+      if(!SERVER_AUTH.authenticated) return null;
       try{
-        const snap = await db.collection('niyakrish_data').doc(key).get();
-        if(snap.exists) return snap.data().value;
+        const data = await apiFetch('/api/data/' + encodeURIComponent(key));
+        return data.value ?? null;
       }catch(e){
-        console.warn('Cloud pull failed for '+key+':', e);
-        throw e; // let caller handle
+        console.warn('Server pull failed for '+key+':', e);
+        throw e;
       }
-      return null;
     }
 
     async function loadFromCloud(manual){
-      if(!db){ if(manual) showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
+      if(!SERVER_AUTH.authenticated){ if(manual) showToast('Sign in to use server sync.', 'error'); return; }
       updateCloudStatus('syncing');
       let loaded = 0, failed = 0;
       for(const key of CLOUD_KEYS){
@@ -3600,85 +3557,93 @@ table.list-table tbody td {
       }
       if(failed > 0){
         updateCloudStatus('error');
-        if(manual) showToast('⚠️ Cloud sync failed ('+failed+' errors). Check Firestore security rules — allow read, write for niyakrish_data collection.', 'error');
+        if(manual) showToast('Server sync failed for '+failed+' collections.', 'error');
       } else {
         updateCloudStatus('connected');
         _cloudPushErrorShown = false;
         if(manual){
-          showToast('✓ Loaded '+loaded+' collections from cloud.', 'success');
+          showToast('Loaded '+loaded+' collections from server.', 'success');
           location.reload();
         }
       }
     }
 
     async function syncLocalToCloud(){
-      if(!db){ showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
+      if(!SERVER_AUTH.authenticated){ showToast('Sign in to use server sync.', 'error'); return; }
       updateCloudStatus('syncing');
       let pushed = 0, failed = 0;
       for(const key of CLOUD_KEYS){
         const val = localStorage.getItem(key);
         if(val){
           try{
-            await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
+            await apiFetch('/api/data/' + encodeURIComponent(key), {
+              method: 'PUT',
+              body: JSON.stringify({ value: val }),
+            });
             pushed++;
-          }catch(e){ failed++; console.warn('Sync push failed for '+key+':', e); }
+          }catch(e){ failed++; console.warn('Server sync push failed for '+key+':', e); }
         }
       }
       if(failed > 0){
         updateCloudStatus('error');
-        showToast('⚠️ Cloud push failed for '+failed+' collections. Your Firestore security rules likely need to allow writes. Go to Firebase Console → Firestore → Rules.', 'error');
+        showToast('Server push failed for '+failed+' collections.', 'error');
       } else {
         updateCloudStatus('connected');
-        showToast('✓ All local data ('+pushed+' collections) pushed to cloud successfully!', 'success');
+        showToast('All local data ('+pushed+' collections) pushed to server.', 'success');
       }
     }
 
     function updateCloudStatus(state){
       let text, color;
       switch(state){
-        case 'connected': text = '☁️ Cloud Sync Active — Auto-saving to Firebase'; color = '#10b981'; break;
-        case 'syncing':   text = '⏳ Syncing with cloud…'; color = '#f59e0b'; break;
-        case 'error':     text = '⚠️ Cloud Error — Running in Offline Mode'; color = '#ef4444'; break;
-        default:          text = '💾 Safe Offline Storage Active'; color = '#6b7280';
+        case 'connected': text = 'Server Sync Active - auto-saving securely'; color = '#10b981'; break;
+        case 'syncing':   text = 'Syncing with server...'; color = '#f59e0b'; break;
+        case 'error':     text = 'Server Error - local cache active'; color = '#ef4444'; break;
+        default:          text = 'Local Cache Active - sign in for server sync'; color = '#6b7280';
       }
       const els = [document.getElementById('backup-status-text'), document.getElementById('cloud-sync-status')];
       els.forEach(el => { if(el){ el.textContent = text; el.style.color = color; } });
     }
 
-    // ======= REAL-TIME CROSS-DEVICE SYNC (Firestore onSnapshot) =======
-    let _realtimeUnsubs = [];
+    async function testServerConnection(){
+      try{
+        const health = await apiFetch('/api/health');
+        if(health.status === 'ok'){
+          updateCloudStatus(SERVER_AUTH.authenticated ? 'connected' : 'offline');
+          showToast('Backend is reachable.', 'success');
+        }
+      }catch(e){
+        updateCloudStatus('error');
+        showToast(e.message || 'Backend is not reachable.', 'error');
+      }
+    }
+
+    async function wipeServerData(){
+      if(!SERVER_AUTH.authenticated){ showToast('Sign in first.', 'error'); return; }
+      if(!confirm('FINAL WARNING: This wipes all server-side invoice data. Local browser data is untouched. Continue?')) return;
+      try{
+        await apiFetch('/api/data', { method: 'DELETE', body: '{}' });
+        showToast('Server data wiped successfully.', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not wipe server data.', 'error');
+      }
+    }
+
+    // Poll-based cross-device sync keeps the app simple and avoids external listeners.
+    let _syncPollTimer = null;
 
     function startRealtimeSync(){
-      if(!db) return;
-      stopRealtimeSync(); // clear any previous listeners first
-
-      const keysToWatch = [...CLOUD_KEYS, 'app_credentials'];
-      keysToWatch.forEach(key => {
-        try{
-          const unsub = db.collection('niyakrish_data').doc(key).onSnapshot(snap => {
-            if(!snap.exists) return;
-            const incoming = snap.data().value;
-            if(incoming == null) return;
-            const current = localStorage.getItem(key);
-            if(incoming === current) return; // our own write echoing back — skip
-
-            _lsWriteRaw(key, incoming); // persist + invalidate read cache
-
-            // Only update UI once the user is authenticated
-            if(!sessionStorage.getItem('niyakrish_auth')) return;
-            _applyRealtimeUpdate(key);
-          }, err => {
-            console.warn('Realtime listener error for', key, err);
-            if(err.code === 'permission-denied') updateCloudStatus('error');
-          });
-          _realtimeUnsubs.push(unsub);
-        }catch(e){ console.warn('Could not start listener for', key, e); }
-      });
+      if(!SERVER_AUTH.authenticated) return;
+      stopRealtimeSync();
+      _syncPollTimer = setInterval(async () => {
+        try{ await loadFromCloud(false); refreshActiveView(); }
+        catch(e){ console.warn('Background sync failed:', e); }
+      }, 30000);
     }
 
     function stopRealtimeSync(){
-      _realtimeUnsubs.forEach(fn => { try{ fn(); }catch(e){} });
-      _realtimeUnsubs = [];
+      if(_syncPollTimer) clearInterval(_syncPollTimer);
+      _syncPollTimer = null;
     }
 
     function _applyRealtimeUpdate(key){
@@ -4830,19 +4795,19 @@ table.list-table tbody td {
       if(logoEl) logoEl.src = '';
     }
 
-    // ======= Firebase Settings Lock =======
-    async function unlockFirebaseSettings() {
+    // ======= Server Settings Lock =======
+    async function unlockServerSettings() {
       const passInput = document.getElementById('fb-unlock-pass');
       const errEl     = document.getElementById('fb-unlock-err');
       const pass      = passInput?.value || '';
       if(!pass){ if(errEl) errEl.textContent = 'Enter password.'; return; }
+      if(!SERVER_AUTH.authenticated){ if(errEl) errEl.textContent = 'Sign in first.'; return; }
 
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
+      try{
+        await apiFetch('/api/auth/verify', {
+          method: 'POST',
+          body: JSON.stringify({ username: SERVER_AUTH.username, password: pass }),
+        });
         document.getElementById('fb-locked-panel').style.display = 'none';
         document.getElementById('fb-config-panel').style.display = 'block';
         const badge = document.getElementById('fb-lock-badge');
@@ -4850,14 +4815,14 @@ table.list-table tbody td {
         if(passInput) passInput.value = '';
         if(errEl) errEl.textContent = '';
         clearTimeout(window._fbAutoLockTimer);
-        window._fbAutoLockTimer = setTimeout(lockFirebaseSettings, 5 * 60 * 1000);
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
+        window._fbAutoLockTimer = setTimeout(lockServerSettings, 5 * 60 * 1000);
+      } catch(e) {
+        if(errEl) errEl.textContent = e.message || 'Incorrect password.';
         if(passInput) passInput.value = '';
       }
     }
 
-    function lockFirebaseSettings() {
+    function lockServerSettings() {
       const lp = document.getElementById('fb-locked-panel');
       const cp = document.getElementById('fb-config-panel');
       const badge = document.getElementById('fb-lock-badge');
@@ -4876,19 +4841,19 @@ table.list-table tbody td {
       const errEl     = document.getElementById('wipe-unlock-err');
       const pass      = passInput?.value || '';
       if(!pass){ if(errEl) errEl.textContent = 'Enter admin password to proceed.'; return; }
+      if(!SERVER_AUTH.authenticated){ if(errEl) errEl.textContent = 'Sign in first.'; return; }
 
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
+      try{
+        await apiFetch('/api/auth/verify', {
+          method: 'POST',
+          body: JSON.stringify({ username: SERVER_AUTH.username, password: pass }),
+        });
         if(passInput) passInput.value = '';
-        if(!confirm('⚠️ FINAL WARNING: This will permanently wipe ALL local data — invoices, customers, payments, gate passes. This cannot be undone. Continue?')) return;
+        if(!confirm('FINAL WARNING: This will permanently wipe local browser data. Server data is untouched unless you use Wipe Server Data. Continue?')) return;
         localStorage.clear();
         location.reload();
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
+      } catch(e) {
+        if(errEl) errEl.textContent = e.message || 'Incorrect password.';
         if(passInput) passInput.value = '';
       }
     }
@@ -5161,7 +5126,7 @@ table.list-table tbody td {
       const n = v !== null ? parseInt(v, 10) : 0;
       if(n < MIN_SEQ){
         // Stored value is below the floor — correct it immediately in both
-        // localStorage and Firestore so every device stays consistent
+        // localStorage and the backend so every device stays consistent
         localStorage.setItem('invoice_seq', String(MIN_SEQ));
         cloudPush('invoice_seq', String(MIN_SEQ));
         return MIN_SEQ;
@@ -6884,27 +6849,7 @@ table.list-table tbody td {
 
     // ======= Init & Window Load =======
     async function init(){
-      // 1. Init Firebase first so we can pull credentials before showing login
-      initFirebase();
-
-      // 2. Sync credentials from cloud → all devices share the same password
-      if(db){
-        try{
-          const creds = await cloudPull('app_credentials');
-          if(creds){
-            // Cloud credentials take priority (latest password change wins)
-            localStorage.setItem('app_credentials', creds);
-          }
-          // If cloud has no credentials yet, keep whatever is in localStorage (or default applies at login)
-        }catch(e){
-          // Firebase read blocked (security rules) — will warn user after login via loadFromCloud
-          console.warn('Could not pull credentials from cloud:', e);
-        }
-      }
-      // Offline: keep stored local credentials as-is so custom passwords still work
-
-      // 3. Check if already authenticated this session
-      checkAuth();
+      const authenticated = await checkAuth();
 
       const invoiceNoInput = document.getElementById('invoiceNo');
       invoiceNoInput.readOnly = true; // start in AUTO mode
@@ -6938,24 +6883,22 @@ table.list-table tbody td {
         if (window.innerWidth > 1024) closeSidebar();
       });
 
-      // Pull latest cloud data (Firebase already inited above)
-      if(db){
+      // Pull latest server data only when the backend session is active.
+      if(authenticated){
         await loadFromCloud(false);
         applyCompanySettings(getCompanySettings());
         updateDashboardMetrics();
         renderDashboardCharts();
         loadAutofills();
         refreshActiveView();
-        // Start real-time listeners so any device that saves data is instantly
-        // reflected here without needing a page refresh
         startRealtimeSync();
       }
 
-      // Set invoice number after possible cloud pull (seq may have updated)
+      // Set invoice number after possible server pull (seq may have updated)
       invoiceNoInput.value = peekNextInvoiceNo();
     }
 
-    // Re-renders whichever view is currently active (used after cloud data pull)
+    // Re-renders whichever view is currently active (used after server data pull)
     function refreshActiveView(){
       const activePanel = document.querySelector('.view-panel.active');
       if(!activePanel) return;

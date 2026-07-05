@@ -76,6 +76,8 @@ logs/
 # Database
 *.db
 *.sqlite
+*.sqlite3
+invoice-app/data/
 
 # Secrets
 *.pem

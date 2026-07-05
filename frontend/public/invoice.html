@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- Firebase compat SDK (v9 compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -429,7 +426,7 @@
     .box { border: 1px solid #000; padding: 8px; font-size: 13px; }
     .left-box { flex: 1; }
     .right-box { width: 320px; }
-    
+
     table.items { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
     table.items th, table.items td { border: 1px solid #000; padding: 6px; vertical-align: middle; }
     table.items th { background: #efefef; font-weight: 700; text-align: left; }
@@ -609,6 +606,7 @@
     }
     .toast.success { background: #10b981; }
     .toast.error   { background: #ef4444; }
+    .toast.warning { background: #d97706; }
 
     @keyframes fadeup {
       from { opacity: 0; transform: translateY(10px); }
@@ -634,8 +632,9 @@
     .panel .close { float: right; }
 
     /* ── PRINT-SPECIFIC CSS RULES ── */
-    @page { size: A4; margin: 8mm; }
-    
+    .print-only { display: none; }
+    @page { size: A4 portrait; margin: 8mm 10mm; }
+
     @media print {
       body {
         background: #fff;
@@ -669,20 +668,40 @@
       .view-header, .action-bar, .gp-actions, .no-print, .btn, .modal {
         display: none !important;
       }
+      .print-only { display: block !important; }
+      /* Force ALL backgrounds & colors to print exactly */
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      /* Force colored backgrounds to print */
+      #po-sheet [style*="background:#1e3a5f"], #quote-sheet [style*="background:#1e3a5f"],
+      #po-sheet thead tr, #quote-sheet thead tr {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
       /* Explicitly hide due date and remarks even if inside .sheet */
       #due-date-row, #remarks-row, #internal-notes-row {
         display: none !important;
       }
 
-      /* Invoice print safe padding */
+      /* Invoice print — fit exactly one A4 page */
       .sheet {
-        width: 200mm !important;
+        width: 100% !important;
+        max-width: 100% !important;
         min-height: auto !important;
         border: none !important;
         box-shadow: none !important;
-        padding: 4mm !important;
-        margin: 0 auto !important;
+        padding: 2mm !important;
+        margin: 0 !important;
       }
+      /* Tighten spacing so content fits one page */
+      .sheet .header { min-height: auto !important; }
+      .sheet .field-row { margin-top: 4px !important; }
+      .sheet table.items { margin-top: 6px !important; }
+      .sheet table.items th, .sheet table.items td { padding: 4px 5px !important; font-size: 10.5pt !important; }
+      .sheet .bottom-grid { margin-top: 6px !important; }
+      .sheet .bank { padding: 6px 8px !important; font-size: 10.5pt !important; }
+      .sheet .summary td { padding: 3px 4px !important; font-size: 10.5pt !important; }
+      .sheet .terms { margin-top: 6px !important; padding: 6px 8px !important; font-size: 10pt !important; line-height: 1.45 !important; }
+      .sheet .sign-row { margin-top: 8px !important; }
+      .sheet .sign, .sheet .sign-right { padding: 5px 7px !important; min-height: 48px !important; }
 
       .copy-label { display: block !important; }
 
@@ -1086,6 +1105,314 @@
     color: #f87171; font-size: 13px; margin-top: 10px; min-height: 20px;
   }
   </style>
+
+  <!-- ── App UI Upgrade ── -->
+  <style>
+/* ── Sidebar refinements ──────────────────────────────────────── */
+.sidebar-brand {
+  border-left: 3px solid #f59e0b;
+  padding-left: 17px !important;
+}
+.sidebar-brand h1 {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.sidebar .menu-item.active {
+  background: rgba(245, 158, 11, 0.10) !important;
+  border-left: 3px solid #f59e0b;
+  padding-left: calc(var(--menu-pad, 16px) - 3px);
+  color: #fbbf24 !important;
+}
+.sidebar .menu-item.active .menu-icon {
+  color: #f59e0b !important;
+}
+.sidebar .menu-item:hover:not(.active) {
+  background: rgba(255,255,255,0.05) !important;
+  color: #e2e8f0 !important;
+}
+.sidebar .nav-section-label {
+  color: #475569;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  padding: 16px 16px 4px;
+}
+.sidebar-footer .sign-out-btn,
+#signout-btn,
+button[onclick*="signOut"],
+button[onclick*="logout"] {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  color: #fca5a5 !important;
+  border-radius: 6px !important;
+  transition: background 0.2s ease !important;
+}
+.sidebar-footer .sign-out-btn:hover,
+#signout-btn:hover {
+  background: rgba(239, 68, 68, 0.16) !important;
+}
+
+/* ── Dashboard stat cards ─────────────────────────────────────── */
+.stat-card {
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.stat-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+}
+.stat-card:nth-child(1) .stat-icon { background: rgba(245,158,11,0.10) !important; }
+.stat-card:nth-child(1) .stat-icon svg,
+.stat-card:nth-child(1) .stat-icon i { color: #f59e0b !important; }
+.stat-value {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.5px !important;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: var(--text-muted, #64748b) !important;
+}
+
+/* ── View headers ─────────────────────────────────────────────── */
+.view-header {
+  padding-bottom: 16px !important;
+  border-bottom: 1px solid var(--border-color, #e2e8f0) !important;
+  margin-bottom: 20px !important;
+}
+.view-title {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: var(--text-main, #0f172a) !important;
+  letter-spacing: -0.3px !important;
+}
+
+/* ── Action bar buttons ───────────────────────────────────────── */
+.btn-primary,
+.action-bar .btn:first-child,
+button.primary {
+  background: var(--accent, #4f46e5) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  padding: 8px 16px !important;
+  transition: background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease !important;
+  box-shadow: 0 1px 3px rgba(79,70,229,0.25) !important;
+}
+.btn-primary:hover { background: var(--accent-hover, #4338ca) !important; box-shadow: 0 4px 12px rgba(79,70,229,0.30) !important; }
+.btn-secondary,
+.action-bar .btn {
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 7px 14px !important;
+  transition: background 0.18s ease, box-shadow 0.18s ease !important;
+}
+.btn-success,
+button[onclick*="markPaid"],
+.btn-green {
+  background: #059669 !important;
+  border: none !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px rgba(5,150,105,0.25) !important;
+  transition: background 0.18s ease !important;
+}
+.btn-success:hover { background: #047857 !important; }
+
+/* ── Card / panel surfaces ────────────────────────────────────── */
+.card,
+.panel,
+.form-card {
+  border-radius: 12px !important;
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+}
+
+/* ── Form inputs ──────────────────────────────────────────────── */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+textarea,
+select {
+  border-radius: 7px !important;
+  border: 1px solid #d1d5db !important;
+  font-size: 13px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #a5b4fc !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important;
+  outline: none !important;
+}
+.form-section-title,
+.form-label,
+label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  color: var(--text-muted, #64748b) !important;
+}
+
+/* ── History / data tables ────────────────────────────────────── */
+.data-table,
+.history-table,
+table.list-table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  font-size: 13px !important;
+}
+.data-table thead th,
+.history-table thead th,
+table.list-table thead th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.6px !important;
+  padding: 10px 14px !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  white-space: nowrap !important;
+}
+.data-table tbody tr,
+.history-table tbody tr,
+table.list-table tbody tr {
+  border-bottom: 1px solid #f1f5f9 !important;
+  transition: background 0.12s ease !important;
+}
+.data-table tbody tr:hover,
+.history-table tbody tr:hover,
+table.list-table tbody tr:hover {
+  background: #f8fafc !important;
+}
+.data-table tbody td,
+.history-table tbody td,
+table.list-table tbody td {
+  padding: 10px 14px !important;
+  color: #1e293b !important;
+  vertical-align: middle !important;
+}
+
+/* Status badges */
+.badge,
+.status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px !important;
+}
+.badge-paid, .status-paid     { background: #d1fae5; color: #065f46; }
+.badge-unpaid, .status-unpaid { background: #fee2e2; color: #991b1b; }
+.badge-partial                { background: #fef3c7; color: #92400e; }
+
+/* ── Toast notifications ──────────────────────────────────────── */
+.toast,
+#toast {
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 12px 20px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* ── Modal refinements ────────────────────────────────────────── */
+.modal-box,
+.modal-content,
+.modal .inner {
+  border-radius: 14px !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.18) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+/* ── Login box ────────────────────────────────────────────────── */
+.login-box {
+  border-radius: 20px !important;
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,255,255,0.06) !important;
+}
+.login-box button[type="submit"],
+#login-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  color: #1c1917 !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.3px !important;
+  box-shadow: 0 4px 16px rgba(245,158,11,0.35) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+#login-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(245,158,11,0.45) !important;
+}
+
+/* ── Quick action cards on dashboard ──────────────────────────── */
+.quick-action,
+.action-card {
+  border-radius: 10px !important;
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  transition: transform 200ms cubic-bezier(0.22,1,0.36,1),
+              box-shadow 200ms cubic-bezier(0.22,1,0.36,1),
+              border-color 200ms ease !important;
+  cursor: pointer !important;
+}
+.quick-action:hover,
+.action-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08) !important;
+  border-color: #a5b4fc !important;
+}
+
+/* ── Mobile top bar ───────────────────────────────────────────── */
+.mobile-topbar {
+  background: #0f172a !important;
+  border-bottom: 2px solid #f59e0b !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Scrollbar refinement ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Page fade-in on view switch ──────────────────────────────── */
+.view-panel.active {
+  animation: viewFadeIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+  </style>
 </head>
 <body>
 
@@ -1151,6 +1478,25 @@
       <button class="menu-item" onclick="switchView('gphistory')">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         GP History
+      </button>
+
+      <div class="sidebar-section-label">SALES</div>
+
+      <button class="menu-item" onclick="switchView('quotation')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+        Quotation Builder
+      </button>
+      <button class="menu-item" onclick="switchView('qhistory')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+        Quotation History
+      </button>
+      <button class="menu-item" onclick="switchView('purchaseorder')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+        Purchase Order
+      </button>
+      <button class="menu-item" onclick="switchView('pohistory')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>
+        PO History
       </button>
 
       <div class="sidebar-section-label">ACCOUNTS</div>
@@ -1396,7 +1742,7 @@
               </div>
               <div style="width:150px">
                 <label>GSTIN &nbsp;<span id="gstin-badge" style="font-size:9px;font-weight:700;"></span></label>
-                <input id="custGSTIN" type="text" style="width:100%" oninput="validateGSTIN(this)" placeholder="29AAKCN0823D1ZM"/>
+                <input id="custGSTIN" type="text" style="width:100%;text-transform:uppercase;" oninput="validateGSTIN(this); lookupCustomerByGSTINInvoice();" placeholder="29AAKCN0823D1ZM"/>
               </div>
             </div>
             <label style="margin-top:6px;">Customer Address</label>
@@ -1478,7 +1824,7 @@
               <tr><td>CGST @ 9.0 %</td><td class="rightcell" id="cgstTotal">0.00</td></tr>
               <tr><td>SGST @ 9.0 %</td><td class="rightcell" id="sgstTotal">0.00</td></tr>
               <tr>
-                <td>TCS @ <input id="tcsPct" type="number" step="0.01" value="0.00" min="0" style="width:34px;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:12px;padding:0 2px;background:transparent;" oninput="recalcAll()" title="Enter TCS %"> %</td>
+                <td>TCS @ <input id="tcsPct" type="number" step="0.01" value="0.00" min="0" style="width:34px;border:none;border-bottom:1px solid #aaa;text-align:center;font-size:12px;padding:0 2px;background:transparent;" oninput="recalcAllDebounced()" title="Enter TCS %"> %</td>
                 <td class="rightcell" id="tcsAmount">0.00</td>
               </tr>
               <tr><td style="font-weight:700">Net Amount</td><td class="rightcell" id="netAmount" style="font-weight:700">0.00</td></tr>
@@ -1677,8 +2023,9 @@
                 <input type="text" id="cust-phone" placeholder="98765 43210">
               </div>
               <div class="form-group" style="margin-bottom:10px;">
-                <label>GSTIN</label>
-                <input type="text" id="cust-gstin" placeholder="29AAKCN0823D1ZM">
+                <label>GSTIN &nbsp;<span style="font-size:9px;color:#6b7280;">(auto-fills name &amp; address from GST portal)</span></label>
+                <input type="text" id="cust-gstin" placeholder="29AAKCN0823D1ZM" oninput="lookupCustomerByGSTIN()" style="text-transform:uppercase;">
+                <div id="cust-gstin-status" style="font-size:10px; margin-top:2px; min-height:14px;"></div>
               </div>
               <div class="form-group" style="margin-bottom:10px;">
                 <label>Billing Address</label>
@@ -2087,10 +2434,10 @@
         </div>
       </div>
 
-      <!-- Cloud Sync Block — password protected -->
+      <!-- Secure Server Sync Block - password protected -->
       <div class="card" style="margin-top:20px; border-color:#6366f1;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0;">☁️ Firebase Cloud Sync</h3>
+          <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0;">Secure Server Sync</h3>
           <span id="fb-lock-badge" style="font-size:11px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:12px; padding:2px 10px; font-weight:700;">🔒 Locked</span>
         </div>
         <div id="cloud-sync-status" style="font-size:12px; font-weight:700; margin-bottom:12px; color:#6b7280;">💾 Not Connected</div>
@@ -2098,12 +2445,12 @@
         <!-- Locked state -->
         <div id="fb-locked-panel" style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:16px; text-align:center;">
           <div style="font-size:13px; color:#78350f; margin-bottom:12px; line-height:1.6;">
-            🔒 Firebase configuration is admin-protected.<br>
-            <span style="font-size:11px; color:#92400e;">Enter the admin password to access sync settings.</span>
+            Server backup actions are admin-protected.<br>
+            <span style="font-size:11px; color:#92400e;">Enter the admin password to pull, push, or wipe server data.</span>
           </div>
           <div style="display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;">
-            <input type="password" id="fb-unlock-pass" placeholder="Admin password" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; width:180px;" onkeydown="if(event.key==='Enter') unlockFirebaseSettings()">
-            <button onclick="unlockFirebaseSettings()" style="padding:6px 16px; font-size:12px; background:#6366f1; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">🔓 Unlock</button>
+            <input type="password" id="fb-unlock-pass" placeholder="Admin password" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; width:180px;" onkeydown="if(event.key==='Enter') unlockServerSettings()">
+            <button onclick="unlockServerSettings()" style="padding:6px 16px; font-size:12px; background:#6366f1; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">🔓 Unlock</button>
           </div>
           <div id="fb-unlock-err" style="font-size:11px; color:#dc2626; margin-top:6px; min-height:16px;"></div>
         </div>
@@ -2112,39 +2459,18 @@
         <div id="fb-config-panel" style="display:none;">
           <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; padding:8px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
             <span style="font-size:11px; color:#065f46; font-weight:600;">🔓 Admin access granted — auto-locks in 5 min</span>
-            <button onclick="lockFirebaseSettings()" style="font-size:11px; padding:3px 10px; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; background:#fff; color:#065f46; font-weight:600;">🔒 Lock Now</button>
+            <button onclick="lockServerSettings()" style="font-size:11px; padding:3px 10px; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; background:#fff; color:#065f46; font-weight:600;">🔒 Lock Now</button>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">API Key</label>
-              <input type="text" id="fb-apiKey" placeholder="AIzaSy…" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Auth Domain</label>
-              <input type="text" id="fb-authDomain" placeholder="your-app.firebaseapp.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Project ID</label>
-              <input type="text" id="fb-projectId" placeholder="your-project-id" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Storage Bucket</label>
-              <input type="text" id="fb-storageBucket" placeholder="your-app.appspot.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Messaging Sender ID</label>
-              <input type="text" id="fb-messagingSenderId" placeholder="123456789" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">App ID</label>
-              <input type="text" id="fb-appId" placeholder="1:123:web:abc…" style="font-size:12px;">
+          <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:6px; padding:12px; margin-bottom:12px;">
+            <div style="font-size:12px; color:#374151; line-height:1.5;">
+              Data is stored on this backend in a server-side, CSRF-protected SQLite database. Browser storage is only a working cache for fast invoice editing.
             </div>
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn accent" style="background:#6366f1; justify-content:center;" onclick="saveFirebaseConfig()">💾 Save &amp; Connect</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="syncLocalToCloud()">⬆ Push Local → Cloud</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="loadFromCloud(true)">⬇ Pull Cloud → Local</button>
-            <button class="btn secondary danger" style="justify-content:center;" onclick="disconnectFirebase()">✖ Disconnect</button>
+            <button class="btn accent" style="background:#6366f1; justify-content:center;" onclick="testServerConnection()">Test Backend</button>
+            <button class="btn secondary" style="justify-content:center;" onclick="syncLocalToCloud()">Push Local to Server</button>
+            <button class="btn secondary" style="justify-content:center;" onclick="loadFromCloud(true)">Pull Server to Local</button>
+            <button class="btn secondary danger" style="justify-content:center;" onclick="wipeServerData()">Wipe Server Data</button>
           </div>
         </div>
       </div>
@@ -2245,7 +2571,7 @@
               <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
                 <div style="flex:1; min-width:180px;">
                   <input type="file" id="cs-logo-file" accept="image/*" onchange="previewLogoUpload(this)" style="font-size:12px; margin-bottom:4px; width:100%;">
-                  <div style="font-size:10px; color:#6b7280;">PNG / JPG / SVG — stored in cloud, no hosting needed</div>
+                  <div style="font-size:10px; color:#6b7280;">PNG / JPG / SVG - stored inside server-backed company settings</div>
                   <button type="button" onclick="clearLogoUpload()" style="margin-top:6px; font-size:10px; padding:2px 8px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; color:#6b7280;">✕ Remove Logo</button>
                 </div>
                 <div id="cs-logo-preview-box" style="width:100px; height:70px; border:1px dashed #d1d5db; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#f8fafc; flex-shrink:0;">
@@ -2345,6 +2671,401 @@
       </div>
     </div>
 
+  <!-- ====== QUOTATION BUILDER ====== -->
+  <div id="view-quotation" class="view-panel">
+    <div class="card no-print" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Quotation Builder</h2>
+      <button class="btn secondary" onclick="newQuotation()">+ New Quote</button>
+      <button class="btn accent" onclick="saveQuotation()">💾 Save Quote</button>
+      <button class="btn secondary" onclick="printQuotation()">🖨 Print</button>
+      <button class="btn" style="background:#10b981;color:#fff;" onclick="convertQuoteToInvoice()">→ Convert to Invoice</button>
+      <button class="btn secondary" onclick="switchView('qhistory')">📋 All Quotes</button>
+    </div>
+
+    <!-- Printable Quote Sheet -->
+    <div id="quote-sheet" class="sheet" style="background:#fff; max-width:810px; margin:0 auto; border:1px solid #d1d5db; border-radius:6px; overflow:hidden; font-family:'Arial',sans-serif;">
+
+      <!-- Header: Astra-inspired dark grey + red left accent -->
+      <div style="position:relative; background:#4b5563; overflow:hidden; min-height:80px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+        <!-- Red diagonal left accent -->
+        <div style="position:absolute; left:0; top:0; bottom:0; width:72px; background:#dc2626; clip-path:polygon(0 0, 100% 0, 62% 100%, 0 100%); -webkit-print-color-adjust:exact; print-color-adjust:exact;"></div>
+        <!-- Subtle white shimmer top-right -->
+        <div style="position:absolute; top:-50px; right:-40px; width:220px; height:160px; background:rgba(255,255,255,.08); border-radius:50%; pointer-events:none;"></div>
+        <!-- Content row -->
+        <div style="position:relative; z-index:1; display:flex; align-items:center; padding:12px 18px 12px 82px; gap:14px;">
+          <!-- Logo (white background chip) -->
+          <div style="background:#fff; padding:5px 8px; border-radius:5px; flex-shrink:0; line-height:0; box-shadow:0 1px 4px rgba(0,0,0,.25);">
+            <img id="q-logo-img" src="" alt="Logo" style="max-width:100px; max-height:52px; display:block; object-fit:contain;">
+          </div>
+          <!-- Company info -->
+          <div style="flex:1; color:#fff; min-width:0;">
+            <div id="q-co-name" style="font-size:14px; font-weight:900; text-transform:uppercase; letter-spacing:.5px; line-height:1.3;"></div>
+            <div id="q-co-addr" style="font-size:9.5px; opacity:.88; margin-top:3px; line-height:1.5;"></div>
+            <div id="q-co-gstin" style="font-size:9.5px; opacity:.88; margin-top:1px;"></div>
+          </div>
+          <!-- QUOTATION title + ref -->
+          <div style="text-align:right; color:#fff; flex-shrink:0;">
+            <div style="font-size:24px; font-weight:900; letter-spacing:4px; color:#fbbf24; text-shadow:1px 1px 2px rgba(0,0,0,.5); line-height:1;">QUOTATION</div>
+            <table style="margin-top:6px; margin-left:auto; font-size:10.5px; border-collapse:collapse;">
+              <tr><td style="color:rgba(255,255,255,.7); text-align:left; padding:1px 6px 1px 0; white-space:nowrap;">Quote No</td><td style="font-weight:800; color:#fff; text-align:right; padding:1px 0;" id="q-display-no">—</td></tr>
+              <tr><td style="color:rgba(255,255,255,.7); text-align:left; padding:1px 6px 1px 0;">Date</td><td style="font-weight:700; color:#fff; text-align:right;" id="q-display-date">—</td></tr>
+              <tr><td style="color:rgba(255,255,255,.7); text-align:left; padding:1px 6px 1px 0; white-space:nowrap;">Valid Until</td><td style="font-weight:700; color:#fde68a; text-align:right;" id="q-display-valid">—</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content area -->
+      <div style="padding:16px 20px;">
+
+        <!-- Form fields (screen only) -->
+        <div class="no-print" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:14px; padding:10px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0;">
+          <div class="form-group" style="margin:0;"><label style="font-size:10px;">Quote No</label><input type="text" id="q-no" readonly style="background:#f1f5f9; font-size:12px;"></div>
+          <div class="form-group" style="margin:0;"><label style="font-size:10px;">Date</label><input type="date" id="q-date" oninput="updateQuoteDisplayFields()"></div>
+          <div class="form-group" style="margin:0;"><label style="font-size:10px;">Valid Until</label><input type="date" id="q-valid-until" oninput="updateQuoteDisplayFields()"></div>
+          <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+            <select id="q-status">
+              <option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- To: Customer Info -->
+        <div style="border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; margin-bottom:14px;">
+          <div style="background:#1e3a5f; color:#fff; padding:4px 12px; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">TO</div>
+          <div style="padding:10px 12px;">
+            <div class="form-group no-print" style="margin:0 0 6px;">
+              <input type="text" id="q-cust-name" placeholder="Customer / Party Name" oninput="updateQuoteDisplayFields()" list="q-cust-list" style="font-weight:600; font-size:13px; width:100%;">
+              <datalist id="q-cust-list"></datalist>
+            </div>
+            <div id="q-print-cust-name" class="print-only" style="font-weight:700; font-size:13px; margin-bottom:4px;"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div>
+                <input type="text" id="q-cust-phone" placeholder="Phone" class="no-print" oninput="updateQuoteDisplayFields()" style="margin-bottom:4px; width:100%; font-size:11px;">
+                <div id="q-print-cust-phone" class="print-only" style="font-size:11px; margin-bottom:2px;"></div>
+                <input type="text" id="q-cust-gstin" placeholder="GSTIN" class="no-print" oninput="updateQuoteDisplayFields()" style="width:100%; font-size:11px;">
+                <div id="q-print-cust-gstin" class="print-only" style="font-size:11px;"></div>
+              </div>
+              <div>
+                <textarea id="q-cust-addr" placeholder="Address" class="no-print" rows="2" oninput="updateQuoteDisplayFields()" style="resize:none; width:100%; font-size:11px; margin-bottom:4px;"></textarea>
+                <div id="q-print-cust-addr" class="print-only" style="font-size:11px; white-space:pre-line; margin-bottom:2px;"></div>
+                <input type="text" id="q-cust-site" placeholder="Site / Delivery Location" class="no-print" oninput="updateQuoteDisplayFields()" style="width:100%; font-size:11px;">
+                <div id="q-print-cust-site" class="print-only" style="font-size:11px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dear Sir intro (print only) -->
+        <div class="print-only" style="font-size:11px; margin-bottom:12px; line-height:1.7;">
+          Dear Sir / Madam,<br>
+          We thank you for your enquiry. We are pleased to offer our best competitive rates for your kind perusal based on the following terms &amp; conditions.
+        </div>
+
+        <!-- Items Table -->
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:10px; border:1px solid #cbd5e1;">
+          <thead>
+            <tr style="background:#1e3a5f; color:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+              <th style="padding:7px 5px; text-align:center; width:4%; border-right:1px solid #2d4a7a;">Sl.</th>
+              <th style="padding:7px 6px; text-align:left; width:34%; border-right:1px solid #2d4a7a;">Description</th>
+              <th style="padding:7px 4px; text-align:center; width:8%; border-right:1px solid #2d4a7a;">Qty</th>
+              <th style="padding:7px 4px; text-align:center; width:8%; border-right:1px solid #2d4a7a;">Unit</th>
+              <th style="padding:7px 4px; text-align:right; width:10%; border-right:1px solid #2d4a7a;">Rate (₹)</th>
+              <th style="padding:7px 4px; text-align:center; width:7%; border-right:1px solid #2d4a7a;">Disc%</th>
+              <th style="padding:7px 4px; text-align:center; width:7%; border-right:1px solid #2d4a7a;">GST%</th>
+              <th style="padding:7px 4px; text-align:right; width:12%;">Amount (₹)</th>
+              <th class="no-print" style="padding:7px 4px; width:5%;"></th>
+            </tr>
+          </thead>
+          <tbody id="quote-rows-body"></tbody>
+        </table>
+        <div class="no-print" style="margin-bottom:12px;">
+          <button class="btn secondary" onclick="addQuoteRow()" style="font-size:12px;">+ Add Row</button>
+        </div>
+
+        <!-- Totals -->
+        <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+          <table style="width:290px; font-size:12px; border-collapse:collapse; border:1px solid #cbd5e1;">
+            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;">Sub Total</td><td style="padding:5px 10px; text-align:right; font-weight:600;" id="q-subtotal">₹0.00</td></tr>
+            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;">CGST</td><td style="padding:5px 10px; text-align:right;" id="q-cgst-total">₹0.00</td></tr>
+            <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;">SGST</td><td style="padding:5px 10px; text-align:right;" id="q-sgst-total">₹0.00</td></tr>
+            <tr style="background:#1e3a5f; color:#fff; font-weight:700; font-size:13px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+              <td style="padding:8px 10px;">Net Total</td>
+              <td style="padding:8px 10px; text-align:right;" id="q-net-amount">₹0.00</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Terms & Conditions -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px; font-weight:800; color:#1e3a5f; text-transform:uppercase; border-bottom:2px solid #1e3a5f; padding-bottom:3px; margin-bottom:6px; letter-spacing:.5px;">TERMS &amp; CONDITIONS</div>
+          <textarea id="q-terms" class="no-print" rows="4" placeholder="Payment terms, delivery terms, validity notes…" style="width:100%; resize:none; font-size:11px; line-height:1.6;"></textarea>
+          <div id="q-terms-print" class="print-only" style="font-size:11px; white-space:pre-line; line-height:1.7; color:#374151;"></div>
+        </div>
+
+        <div class="no-print" style="margin-bottom:14px;">
+          <div style="font-size:10px; font-weight:700; color:#9ca3af; margin-bottom:4px; text-transform:uppercase;">Notes (internal — not printed)</div>
+          <textarea id="q-notes" rows="3" style="width:100%; resize:none; font-size:11px;"></textarea>
+        </div>
+
+        <!-- Signature -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px; border-top:1px solid #e2e8f0; padding-top:14px;">
+          <div style="text-align:left;">
+            <div style="font-size:11px; color:#6b7280; margin-bottom:36px;">Thanking You,</div>
+            <div style="border-top:1px solid #374151; padding-top:6px;">
+              <div style="font-size:10px; color:#6b7280;">Customer Acceptance Signature</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px; color:#6b7280; margin-bottom:4px;">Yours Faithfully,</div>
+            <div id="q-auth-co-name" style="font-size:11px; font-weight:700; color:#1e3a5f; margin-bottom:30px;"></div>
+            <div style="border-top:1px solid #374151; padding-top:6px;">
+              <div style="font-size:10px; color:#6b7280;">Authorised Signatory</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; text-align:center; font-size:9px; color:#9ca3af; border-top:1px solid #e2e8f0; padding-top:8px;">
+          This is a computer generated quotation. Subject to our standard terms and conditions.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== QUOTATION HISTORY ====== -->
+  <div id="view-qhistory" class="view-panel">
+    <div class="card" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Quotation History</h2>
+      <button class="btn accent" onclick="switchView('quotation'); newQuotation();">+ New Quotation</button>
+    </div>
+    <!-- Filters -->
+    <div class="card no-print" style="margin-bottom:14px; padding:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;">
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Search</label><input type="text" id="qh-search" placeholder="Quote no / customer…" oninput="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">From Date</label><input type="date" id="qh-from" onchange="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">To Date</label><input type="date" id="qh-to" onchange="renderQHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+        <select id="qh-status" onchange="renderQHistoryView()">
+          <option value="">All</option><option>Draft</option><option>Sent</option><option>Accepted</option><option>Rejected</option><option>Expired</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+          <th style="padding:10px 8px; text-align:left;">Quote No</th>
+          <th style="padding:10px 8px; text-align:left;">Date</th>
+          <th style="padding:10px 8px; text-align:left;">Customer</th>
+          <th style="padding:10px 8px; text-align:left;">Valid Until</th>
+          <th style="padding:10px 8px; text-align:right;">Amount</th>
+          <th style="padding:10px 8px; text-align:center;">Status</th>
+          <th style="padding:10px 8px; text-align:center;">Actions</th>
+        </tr></thead>
+        <tbody id="qhistory-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== PURCHASE ORDER BUILDER ====== -->
+  <div id="view-purchaseorder" class="view-panel">
+    <div class="card no-print" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Purchase Order</h2>
+      <button class="btn secondary" onclick="newPurchaseOrder()">+ New PO</button>
+      <button class="btn accent" onclick="savePurchaseOrder()">💾 Save PO</button>
+      <button class="btn secondary" onclick="printPurchaseOrder()">🖨 Print</button>
+      <button class="btn secondary" onclick="switchView('pohistory')">📋 All POs</button>
+    </div>
+
+    <!-- Printable PO Sheet -->
+    <div id="po-sheet" class="sheet" style="background:#fff; max-width:810px; margin:0 auto; border:1px solid #d1d5db; border-radius:6px; overflow:hidden; font-family:'Arial',sans-serif;">
+
+      <!-- HEADER: ZUARI-inspired — Logo + Company info (white bg) | PO Ref box (light blue) -->
+      <div style="display:flex; align-items:stretch; border-bottom:4px solid #1e3a5f;">
+        <!-- Left: Logo + Company Details (white background) -->
+        <div style="flex:1; padding:14px 16px; display:flex; gap:14px; align-items:flex-start;">
+          <div style="flex-shrink:0; line-height:0;">
+            <img id="po-logo-img" src="" alt="Logo" style="max-width:110px; max-height:72px; display:block; object-fit:contain;">
+          </div>
+          <div>
+            <div id="po-co-name" style="font-size:13.5px; font-weight:900; color:#1e3a5f; text-transform:uppercase; line-height:1.3; letter-spacing:.3px;"></div>
+            <div id="po-co-addr" style="font-size:10px; color:#374151; margin-top:4px; line-height:1.6;"></div>
+            <div id="po-co-gstin" style="font-size:10px; color:#374151; margin-top:1px;"></div>
+            <div id="po-co-phone" style="font-size:10px; color:#374151; margin-top:1px;"></div>
+          </div>
+        </div>
+        <!-- Right: PO details (light tint, dark text — prints cleanly) -->
+        <div style="background:#eef2ff; border-left:3px solid #1e3a5f; padding:14px 16px; min-width:210px; flex-shrink:0; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+          <table style="font-size:11px; border-collapse:collapse; width:100%;">
+            <tr style="border-bottom:1px solid #c7d2fe;">
+              <td colspan="2" style="padding:0 0 6px; text-align:center;">
+                <span style="font-size:15px; font-weight:900; color:#1e3a5f; letter-spacing:3px;">PURCHASE ORDER</span>
+              </td>
+            </tr>
+            <tr><td style="color:#6b7280; padding:4px 8px 2px 0; white-space:nowrap;">PO Number</td><td style="text-align:right; font-weight:900; color:#1e3a5f; padding:4px 0 2px;" id="po-display-no">—</td></tr>
+            <tr><td style="color:#6b7280; padding:2px 8px 2px 0; white-space:nowrap;">PO Date</td><td style="text-align:right; font-weight:700; color:#374151; padding:2px 0;" id="po-display-date">—</td></tr>
+            <tr><td style="color:#6b7280; padding:2px 8px 2px 0; white-space:nowrap;">Quotation Ref.</td><td style="text-align:right; font-weight:700; color:#374151; padding:2px 0;" id="po-display-ref">—</td></tr>
+            <tr><td style="color:#6b7280; padding:2px 8px 0 0; white-space:nowrap;">Delivery Date</td><td style="text-align:right; font-weight:800; color:#059669; padding:2px 0;" id="po-display-delivery">—</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div style="padding:14px 16px;">
+
+      <!-- Form fields (screen editing only) -->
+      <div class="no-print" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-bottom:14px; padding:10px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0;">
+        <div class="form-group" style="margin:0;"><label style="font-size:10px;">PO No</label><input type="text" id="po-no" readonly style="background:#f1f5f9; font-size:12px;"></div>
+        <div class="form-group" style="margin:0;"><label style="font-size:10px;">Date</label><input type="date" id="po-date" oninput="updatePODisplayFields()"></div>
+        <div class="form-group" style="margin:0;"><label style="font-size:10px;">Quotation Ref.</label><input type="text" id="po-quote-ref" placeholder="Ref. No." oninput="updatePODisplayFields()"></div>
+        <div class="form-group" style="margin:0;"><label style="font-size:10px;">Delivery Date</label><input type="date" id="po-delivery-date" oninput="updatePODisplayFields()"></div>
+        <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+          <select id="po-status">
+            <option>Draft</option><option>Sent</option><option>Received</option><option>Partially Received</option><option>Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- VENDOR | SHIP TO two-column -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; margin-bottom:14px; border:1px solid #cbd5e1;">
+        <div style="padding:10px 12px; border-right:1px solid #cbd5e1;">
+          <div style="font-size:9px; font-weight:800; background:#1e3a5f; color:#fff; padding:4px 8px; margin:-10px -12px 8px; text-transform:uppercase; letter-spacing:.5px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">VENDOR / SUPPLIER</div>
+          <input type="text" id="po-vendor-name" placeholder="M/s. Vendor Name" class="no-print" oninput="updatePODisplayFields()" style="font-weight:600; margin-bottom:4px; font-size:12px; width:100%;">
+          <div id="po-print-vendor-name" class="print-only" style="font-weight:700; font-size:12px; margin-bottom:4px;"></div>
+          <textarea id="po-vendor-addr" placeholder="Address" class="no-print" rows="2" oninput="updatePODisplayFields()" style="resize:none; font-size:11px; width:100%; margin-bottom:4px;"></textarea>
+          <div id="po-print-vendor-addr" class="print-only" style="font-size:11px; white-space:pre-line; margin-bottom:4px;"></div>
+          <input type="text" id="po-vendor-gstin" placeholder="GSTIN" class="no-print" oninput="updatePODisplayFields()" style="margin-bottom:4px; font-size:11px; width:100%;">
+          <div id="po-print-vendor-gstin" class="print-only" style="font-size:11px; margin-bottom:2px;"></div>
+          <input type="text" id="po-vendor-contact" placeholder="Contact Person" class="no-print" oninput="updatePODisplayFields()" style="margin-bottom:4px; font-size:11px; width:100%;">
+          <div id="po-print-vendor-contact" class="print-only" style="font-size:11px; margin-bottom:2px;"></div>
+          <input type="text" id="po-vendor-phone" placeholder="Phone" class="no-print" oninput="updatePODisplayFields()" style="font-size:11px; width:100%;">
+          <div id="po-print-vendor-phone" class="print-only" style="font-size:11px;"></div>
+        </div>
+        <div style="padding:10px 12px; background:#f8fafc;">
+          <div style="font-size:9px; font-weight:800; background:#1e3a5f; color:#fff; padding:4px 8px; margin:-10px -12px 8px; text-transform:uppercase; letter-spacing:.5px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">SHIP TO / DELIVERY ADDRESS</div>
+          <div id="po-shipto-name" style="font-weight:700; font-size:12px; margin-bottom:4px; margin-top:4px;"></div>
+          <div id="po-shipto-addr" style="font-size:11px; white-space:pre-line; margin-bottom:4px; line-height:1.5; color:#374151;"></div>
+          <div id="po-shipto-gstin" style="font-size:11px; margin-bottom:6px; color:#374151;"></div>
+          <div style="font-size:11px; color:#9ca3af; margin-top:6px;">Contact Person: _________________________</div>
+          <div style="font-size:11px; color:#9ca3af; margin-top:4px;">Phone: __________________________________</div>
+        </div>
+      </div>
+
+      <!-- Items Table: Sl | Description | HSN/SAC | Qty | UOM | Rate | GST% | Amount -->
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:10px; border:1px solid #cbd5e1;">
+        <thead>
+          <tr style="background:#1e3a5f; color:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+            <th style="padding:7px 5px; text-align:center; width:4%; border-right:1px solid #2d4a7a;">Sl.</th>
+            <th style="padding:7px 6px; text-align:left; width:28%; border-right:1px solid #2d4a7a;">Description of Goods / Services</th>
+            <th style="padding:7px 4px; text-align:center; width:9%; border-right:1px solid #2d4a7a;">HSN / SAC</th>
+            <th style="padding:7px 4px; text-align:center; width:7%; border-right:1px solid #2d4a7a;">Qty</th>
+            <th style="padding:7px 4px; text-align:center; width:7%; border-right:1px solid #2d4a7a;">UOM</th>
+            <th style="padding:7px 4px; text-align:right; width:10%; border-right:1px solid #2d4a7a;">Rate (₹)</th>
+            <th style="padding:7px 4px; text-align:center; width:6%; border-right:1px solid #2d4a7a;">GST%</th>
+            <th style="padding:7px 4px; text-align:right; width:12%;">Amount (₹)</th>
+            <th class="no-print" style="padding:7px 4px; width:5%;"></th>
+          </tr>
+        </thead>
+        <tbody id="po-rows-body"></tbody>
+      </table>
+      <div class="no-print" style="margin-bottom:12px;">
+        <button class="btn secondary" onclick="addPORow()" style="font-size:12px;">+ Add Item</button>
+      </div>
+
+      <!-- Totals -->
+      <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+        <table style="width:320px; font-size:12px; border-collapse:collapse; border:1px solid #cbd5e1;">
+          <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;">Sub Total</td><td style="padding:5px 10px; text-align:right; font-weight:600;" id="po-subtotal">₹0.00</td></tr>
+          <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;" id="po-cgst-label">CGST</td><td style="padding:5px 10px; text-align:right;" id="po-cgst-total">₹0.00</td></tr>
+          <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;" id="po-sgst-label">SGST</td><td style="padding:5px 10px; text-align:right;" id="po-sgst-total">₹0.00</td></tr>
+          <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:5px 10px; color:#6b7280;">IGST @ —</td><td style="padding:5px 10px; text-align:right;" id="po-igst-total">—</td></tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:5px 10px; color:#6b7280;">Freight / Other Charges</td>
+            <td style="padding:5px 10px; text-align:right;">
+              <input type="number" id="po-freight" value="0" min="0" step="any" class="no-print" style="width:80px; text-align:right; font-size:12px; padding:2px 4px;" oninput="calcPOTotals()">
+              <span id="po-freight-print" class="print-only">₹0.00</span>
+            </td>
+          </tr>
+          <tr style="background:#1e3a5f; color:#fff; font-weight:700; font-size:13px; -webkit-print-color-adjust:exact; print-color-adjust:exact;">
+            <td style="padding:8px 10px;">GRAND TOTAL</td>
+            <td style="padding:8px 10px; text-align:right;" id="po-net-amount">₹0.00</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Amount in Words -->
+      <div style="border:1px solid #cbd5e1; padding:8px 12px; margin-bottom:14px; font-size:11px; background:#f8fafc;">
+        <span style="font-weight:800; color:#1e3a5f;">Amount in Words (₹): </span>
+        <span id="po-amount-words" style="font-style:italic; color:#374151;">Zero Rupees Only</span>
+      </div>
+
+      <!-- Terms & Conditions -->
+      <div style="margin-bottom:14px;">
+        <div style="font-size:10px; font-weight:800; color:#1e3a5f; text-transform:uppercase; border-bottom:2px solid #1e3a5f; padding-bottom:3px; margin-bottom:6px; letter-spacing:.5px;">TERMS &amp; CONDITIONS</div>
+        <textarea id="po-terms" class="no-print" rows="6" style="width:100%; resize:none; font-size:11px; line-height:1.6;"></textarea>
+        <div id="po-terms-print" class="print-only" style="font-size:10px; line-height:1.7; white-space:pre-line; color:#374151;"></div>
+      </div>
+
+      <div class="no-print" style="margin-bottom:14px;">
+        <div style="font-size:11px; font-weight:700; color:#6b7280; margin-bottom:4px; text-transform:uppercase;">Notes / Remarks</div>
+        <textarea id="po-notes" rows="3" style="width:100%; resize:none; font-size:11px;"></textarea>
+      </div>
+
+      <!-- Signature Block -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px; border-top:2px solid #1e3a5f; padding-top:14px;">
+        <div style="border:1px solid #cbd5e1; padding:10px 14px; border-radius:4px; text-align:center;">
+          <div style="font-size:9px; font-weight:800; color:#1e3a5f; text-transform:uppercase; letter-spacing:.5px; margin-bottom:36px;">Prepared / Checked By</div>
+          <div style="border-top:1px solid #374151; padding-top:6px;">
+            <div style="font-size:10px; color:#6b7280;">Name &amp; Signature</div>
+          </div>
+        </div>
+        <div style="border:1px solid #cbd5e1; padding:10px 14px; border-radius:4px; text-align:center;">
+          <div style="font-size:9px; font-weight:800; color:#1e3a5f; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">For <span id="po-auth-co-name"></span></div>
+          <div style="height:32px;"></div>
+          <div style="border-top:1px solid #374151; padding-top:6px;">
+            <div style="font-size:10px; color:#6b7280;">Authorised Signatory</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; text-align:center; font-size:9px; color:#9ca3af; border-top:1px solid #e2e8f0; padding-top:8px;">
+        This Purchase Order is valid only when issued on the official letterhead and signed by an authorised signatory.
+      </div>
+      </div><!-- /content wrapper -->
+    </div><!-- /po-sheet -->
+  </div><!-- /view-purchaseorder -->
+
+  <!-- ====== PO HISTORY ====== -->
+  <div id="view-pohistory" class="view-panel">
+    <div class="card" style="margin-bottom:16px; padding:14px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <h2 style="margin:0; font-size:18px; flex:1;">Purchase Order History</h2>
+      <button class="btn accent" onclick="switchView('purchaseorder'); newPurchaseOrder();">+ New PO</button>
+    </div>
+    <!-- Filters -->
+    <div class="card no-print" style="margin-bottom:14px; padding:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;">
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Search</label><input type="text" id="poh-search" placeholder="PO no / vendor…" oninput="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">From Date</label><input type="date" id="poh-from" onchange="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">To Date</label><input type="date" id="poh-to" onchange="renderPOHistoryView()"></div>
+      <div class="form-group" style="margin:0;"><label style="font-size:10px;">Status</label>
+        <select id="poh-status" onchange="renderPOHistoryView()">
+          <option value="">All</option><option>Draft</option><option>Sent</option><option>Received</option><option>Partially Received</option><option>Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+          <th style="padding:10px 8px; text-align:left;">PO No</th>
+          <th style="padding:10px 8px; text-align:left;">Date</th>
+          <th style="padding:10px 8px; text-align:left;">Vendor</th>
+          <th style="padding:10px 8px; text-align:left;">Delivery Date</th>
+          <th style="padding:10px 8px; text-align:right;">Amount</th>
+          <th style="padding:10px 8px; text-align:center;">Status</th>
+          <th style="padding:10px 8px; text-align:center;">Actions</th>
+        </tr></thead>
+        <tbody id="pohistory-body"></tbody>
+      </table>
+    </div>
+  </div>
+
   </div><!-- /.main-content -->
 
   <!-- ====== Summary Modal ====== -->
@@ -2421,9 +3142,53 @@
   <!-- ── SCRIPTS ── -->
   <script>
     // ======= GOOGLE SHEETS INTEGRATION CONFIG =======
-    // Replace with your Google Apps Script Web App deployment URL to enable remote sync.
-    // Leave empty string '' to disable remote sync (gate passes will still save locally).
     const SCRIPT_URL = '';
+
+    // ======= Named constants — change here, updates everywhere =======
+    const APP = Object.freeze({
+      DEFAULT_HSN_CODE:    '38245010',
+      DEFAULT_HSN_DESC:    'READY MIX CONCRETE',
+      DEFAULT_PRODUCT:     'Ready Mix Concrete',
+      DEFAULT_CGST_PCT:    9,
+      DEFAULT_SGST_PCT:    9,
+      INVOICE_SEQ_FLOOR:   779,
+      TOAST_DURATION_MS:   3500,
+      RECALC_DEBOUNCE_MS:  60,
+    });
+
+    // ======= localStorage read cache =======
+    // Avoids re-parsing JSON on every getStored* call.
+    // Invalidated on every write and on incoming realtime sync updates.
+    const _lsCache = Object.create(null);
+
+    function _lsRead(key, defaultJson) {
+      if (key in _lsCache) return _lsCache[key];
+      try { _lsCache[key] = JSON.parse(localStorage.getItem(key) || defaultJson); }
+      catch(e) { _lsCache[key] = JSON.parse(defaultJson); }
+      return _lsCache[key];
+    }
+
+    function _lsWrite(key, val) {
+      _lsCache[key] = val;
+      const json = JSON.stringify(val);
+      localStorage.setItem(key, json);
+      return json; // returned so cloudPush can reuse the serialized string
+    }
+
+    function _lsWriteRaw(key, raw) {
+      delete _lsCache[key]; // raw strings come from external sources — force re-parse on next read
+      localStorage.setItem(key, raw);
+    }
+
+    // Returns true only when the dashboard panel is visible — guards expensive re-renders.
+    function _isDashboardActive() {
+      return document.getElementById('view-dashboard')?.classList.contains('active') ?? false;
+    }
+
+    // Shared customer-name matcher — centralises the normalisation rule.
+    function _nameMatch(a, b) {
+      return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+    }
 
     // ======= Active cached variables =======
     let activeClientPricing = [];
@@ -2431,6 +3196,9 @@
     // ======= Utilities =======
     function formatNum(n){ return Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
     function toNumber(v){ return Number((v||'').toString().replace(/,/g,''))||0; }
+    function _pad2(n){ return String(n).padStart(2,'0'); }
+    function _localDateTimeStr(d){ const n=d||new Date(); return `${n.getFullYear()}-${_pad2(n.getMonth()+1)}-${_pad2(n.getDate())}T${_pad2(n.getHours())}:${_pad2(n.getMinutes())}`; }
+    function _localDateStr(d){ const n=d||new Date(); return `${n.getFullYear()}-${_pad2(n.getMonth()+1)}-${_pad2(n.getDate())}`; }
 
     function numberToWords(num){
       const a=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
@@ -2465,7 +3233,8 @@
       dashboard: 'Dashboard', invoice: 'Invoice Builder', history: 'History',
       gatepass: 'Gate Pass', gphistory: 'GP History', customers: 'Customers',
       payments: 'Payments', ledger: 'Ledger', datacenter: 'Data Center',
-      settings: 'Settings'
+      settings: 'Settings', quotation: 'Quotation Builder', qhistory: 'Quotations',
+      purchaseorder: 'Purchase Order', pohistory: 'PO History'
     };
 
     function switchView(viewId) {
@@ -2509,6 +3278,15 @@
         renderGPHistoryView();
       } else if (viewId === 'settings') {
         loadCompanySettingsForm();
+      } else if (viewId === 'qhistory') {
+        renderQHistoryView();
+      } else if (viewId === 'pohistory') {
+        renderPOHistoryView();
+      } else if (viewId === 'quotation') {
+        populateQuoteCompanyHeader();
+        populateQCustList();
+      } else if (viewId === 'purchaseorder') {
+        populatePOCompanyHeader();
       }
 
       // Mirror autofill dropdowns
@@ -2558,57 +3336,65 @@
     }
 
     // ======= LOCALSTORAGE DATABASE ENGINES =======
-    function getStoredInvoices(){
-      try{ return JSON.parse(localStorage.getItem('invoices')||'[]'); }catch(e){ return []; }
-    }
+    // All reads go through _lsCache (avoids redundant JSON.parse on hot paths).
+    // All writes update the cache first, then persist, then push to the backend.
+    // Dashboard refresh is guarded: only runs when dashboard panel is actually visible.
+
+    function getStoredInvoices()  { return _lsRead('invoices',           '[]'); }
+    function getStoredCustomers() { return _lsRead('invoice_customers',  '[]'); }
+    function getStoredPayments()  { return _lsRead('invoice_payments',   '[]'); }
+    function getStoredGatePasses(){ return _lsRead('invoice_gatepasses', '[]'); }
+
     function saveStoredInvoices(arr){
-      localStorage.setItem('invoices', JSON.stringify(arr));
-      cloudPush('invoices', JSON.stringify(arr));
-      updateDashboardMetrics();
-      renderDashboardCharts();
+      cloudPush('invoices', _lsWrite('invoices', arr));
+      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
     }
 
-    function getStoredCustomers(){
-      try{ return JSON.parse(localStorage.getItem('invoice_customers')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredCustomers(arr){
-      localStorage.setItem('invoice_customers', JSON.stringify(arr));
-      cloudPush('invoice_customers', JSON.stringify(arr));
-      updateDashboardMetrics();
+      cloudPush('invoice_customers', _lsWrite('invoice_customers', arr));
+      if (_isDashboardActive()) updateDashboardMetrics();
     }
 
-    function getStoredPayments(){
-      try{ return JSON.parse(localStorage.getItem('invoice_payments')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredPayments(arr){
-      localStorage.setItem('invoice_payments', JSON.stringify(arr));
-      cloudPush('invoice_payments', JSON.stringify(arr));
-      updateDashboardMetrics();
-      renderDashboardCharts();
+      cloudPush('invoice_payments', _lsWrite('invoice_payments', arr));
+      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
     }
 
-    function getStoredGatePasses(){
-      try{ return JSON.parse(localStorage.getItem('invoice_gatepasses')||'[]'); }catch(e){ return []; }
-    }
     function saveStoredGatePasses(arr){
-      localStorage.setItem('invoice_gatepasses', JSON.stringify(arr));
-      cloudPush('invoice_gatepasses', JSON.stringify(arr));
-      updateDashboardMetrics();
+      cloudPush('invoice_gatepasses', _lsWrite('invoice_gatepasses', arr));
+      if (_isDashboardActive()) updateDashboardMetrics();
     }
 
-    // ======= FIREBASE CLOUD SYNC =======
-    let db = null;
-    const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','company_settings'];
+    // ======= SECURE SERVER SYNC =======
+    const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','gp_seq','company_settings','quotations','purchase_orders','quote_seq','po_seq'];
+    const SERVER_AUTH = { authenticated: false, username: null, csrfToken: null };
 
-    // ── CUSTOM AUTH (no external service) ──
-    // Default credentials — change via Settings > Change Password
-    // Default: username=admin  password=Niyakrish@690
-    const DEFAULT_USER = 'admin';
-    const DEFAULT_PASS_HASH = 'a4a3c3e8b1f2d6e7c9b0a5f4e2d1c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4a3c2'; // placeholder, real hash set below
+    async function apiFetch(path, options = {}){
+      const headers = Object.assign({ 'Accept': 'application/json' }, options.headers || {});
+      if(options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      if(SERVER_AUTH.csrfToken && options.method && options.method !== 'GET'){
+        headers['X-CSRF-Token'] = SERVER_AUTH.csrfToken;
+      }
+      const res = await fetch(path, Object.assign({}, options, {
+        headers,
+        credentials: 'same-origin',
+      }));
+      let data = null;
+      try{ data = await res.json(); }catch(e){}
+      if(!res.ok){
+        const message = data?.detail || data?.message || 'Server request failed';
+        throw new Error(Array.isArray(message) ? message.map(x => x.msg || x).join(', ') : message);
+      }
+      return data;
+    }
 
-    async function sha256(str){
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    async function refreshServerSession(){
+      const session = await apiFetch('/api/session');
+      SERVER_AUTH.authenticated = !!session.authenticated;
+      SERVER_AUTH.username = session.username || null;
+      SERVER_AUTH.csrfToken = session.csrfToken || null;
+      updateCloudStatus(SERVER_AUTH.authenticated ? 'connected' : 'offline');
+      return SERVER_AUTH.authenticated;
     }
 
     async function doLogin(){
@@ -2619,23 +3405,51 @@
       if(!user || !pass){ err.textContent = 'Enter username and password.'; return; }
       btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-
-      const inputHash = await sha256(user + ':' + pass);
-      if(user === expectedUser && inputHash === expectedHash){
+      try{
+        const result = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ username: user, password: pass }),
+        });
+        SERVER_AUTH.authenticated = true;
+        SERVER_AUTH.username = result.username;
+        SERVER_AUTH.csrfToken = result.csrfToken;
         sessionStorage.setItem('niyakrish_auth', '1');
-        showApp(user);
-      } else {
-        err.textContent = 'Incorrect username or password.';
+        showApp(result.username);
+        btn.textContent = 'Loading data...';
+        await loadFromCloud(false);
+        applyCompanySettings(getCompanySettings());
+        updateDashboardMetrics();
+        renderDashboardCharts();
+        loadAutofills();
+        const invNoInput = document.getElementById('invoiceNo');
+        if(invNoInput) invNoInput.value = peekNextInvoiceNo();
+        refreshActiveView();
+        startRealtimeSync();
+        btn.disabled = false; btn.textContent = 'Sign In';
+      }catch(e){
+        SERVER_AUTH.authenticated = false;
+        SERVER_AUTH.username = null;
+        SERVER_AUTH.csrfToken = null;
+        err.textContent = e.message || 'Incorrect username or password.';
         btn.disabled = false; btn.textContent = 'Sign In';
       }
     }
 
-    function doLogout(){
+    async function doLogout(){
+      try{
+        if(SERVER_AUTH.authenticated){
+          await apiFetch('/api/auth/logout', { method: 'POST', body: '{}' });
+        }
+      }catch(e){
+        console.warn('Logout request failed:', e);
+      }
       sessionStorage.removeItem('niyakrish_auth');
+      SERVER_AUTH.authenticated = false;
+      SERVER_AUTH.username = null;
+      SERVER_AUTH.csrfToken = null;
+      stopRealtimeSync();
       hideApp();
+      updateCloudStatus('offline');
     }
 
     async function changeAppPassword(event){
@@ -2646,23 +3460,25 @@
       const confPass = document.getElementById('cp-confirm').value;
       if(!curPass || !newUser || !newPass){ showToast('Fill all fields.','error'); return; }
       if(newPass !== confPass){ showToast('New passwords do not match.','error'); return; }
-      if(newPass.length < 6){ showToast('Password must be at least 6 characters.','error'); return; }
+      if(newPass.length < 12){ showToast('Password must be at least 12 characters.','error'); return; }
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-      const curHash = await sha256(expectedUser + ':' + curPass);
-
-      if(curHash !== expectedHash){ showToast('Current password is incorrect.','error'); return; }
-
-      const newHash = await sha256(newUser + ':' + newPass);
-      const newCreds = JSON.stringify({ username: newUser, passHash: newHash });
-      localStorage.setItem('app_credentials', newCreds);
-      cloudPush('app_credentials', newCreds); // sync to all devices
-      document.getElementById('cp-current').value = '';
-      document.getElementById('cp-new').value = '';
-      document.getElementById('cp-confirm').value = '';
-      showToast('✓ Login credentials updated successfully!','success');
+      try{
+        await apiFetch('/api/auth/password', {
+          method: 'POST',
+          body: JSON.stringify({
+            current_password: curPass,
+            username: newUser,
+            new_password: newPass,
+          }),
+        });
+        document.getElementById('cp-current').value = '';
+        document.getElementById('cp-new').value = '';
+        document.getElementById('cp-confirm').value = '';
+        showToast('Login credentials updated. Please sign in again.','success');
+        await doLogout();
+      }catch(e){
+        showToast(e.message || 'Could not update password.','error');
+      }
     }
 
     function showApp(username){
@@ -2679,132 +3495,175 @@
       if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
     }
 
-    function checkAuth(){
-      if(sessionStorage.getItem('niyakrish_auth')){
-        const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-        showApp(stored ? stored.username : DEFAULT_USER);
-        return true;
+    async function checkAuth(){
+      try{
+        const ok = await refreshServerSession();
+        if(ok){
+          sessionStorage.setItem('niyakrish_auth', '1');
+          showApp(SERVER_AUTH.username);
+          return true;
+        }
+      }catch(e){
+        console.warn('Session check failed:', e);
       }
+      sessionStorage.removeItem('niyakrish_auth');
+      SERVER_AUTH.authenticated = false;
+      SERVER_AUTH.username = null;
+      SERVER_AUTH.csrfToken = null;
+      hideApp();
       return false;
     }
 
-    // Default config — overridable via Data Center UI
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAd0FzunhKRf_Mv65awqB86DAeaTif6_oE",
-      authDomain: "niyakrish-invoice.firebaseapp.com",
-      projectId: "niyakrish-invoice",
-      storageBucket: "niyakrish-invoice.firebasestorage.app",
-      messagingSenderId: "1007805250679",
-      appId: "1:1007805250679:web:f0ea00778ab3da8871da72"
-    };
-
-    function initFirebase(){
-      const stored = localStorage.getItem('firebase_config');
-      const cfg = stored ? stored : JSON.stringify(DEFAULT_FIREBASE_CONFIG);
-      if(!stored) localStorage.setItem('firebase_config', cfg);
+    let _cloudPushErrorShown = false;
+    async function cloudPush(key, value){
+      if(!SERVER_AUTH.authenticated) return;
       try{
-        const config = JSON.parse(cfg);
-        if(!firebase.apps.length) firebase.initializeApp(config);
-        db = firebase.firestore();
+        await apiFetch('/api/data/' + encodeURIComponent(key), {
+          method: 'PUT',
+          body: JSON.stringify({ value }),
+        });
         updateCloudStatus('connected');
-        populateFirebaseForm(config);
+        _cloudPushErrorShown = false;
       }catch(e){
-        db = null;
+        console.warn('Server push failed for '+key+':', e);
         updateCloudStatus('error');
-        console.warn('Firebase init failed:', e);
+        if(!_cloudPushErrorShown){
+          _cloudPushErrorShown = true;
+          showToast('Server save failed. Data is still saved locally in this browser.', 'error');
+        }
       }
-    }
-
-    function populateFirebaseForm(cfg){
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el && cfg[k]) el.value = cfg[k];
-      });
-    }
-
-    function saveFirebaseConfig(){
-      const config = {
-        apiKey: document.getElementById('fb-apiKey').value.trim(),
-        authDomain: document.getElementById('fb-authDomain').value.trim(),
-        projectId: document.getElementById('fb-projectId').value.trim(),
-        storageBucket: document.getElementById('fb-storageBucket').value.trim(),
-        messagingSenderId: document.getElementById('fb-messagingSenderId').value.trim(),
-        appId: document.getElementById('fb-appId').value.trim(),
-      };
-      if(!config.apiKey || !config.projectId){ alert('API Key and Project ID are required.'); return; }
-      localStorage.setItem('firebase_config', JSON.stringify(config));
-      // Re-init (apps can only be initialized once per page load)
-      if(!firebase.apps.length){
-        try{ firebase.initializeApp(config); db = firebase.firestore(); updateCloudStatus('connected'); }
-        catch(e){ updateCloudStatus('error'); alert('Firebase error: '+e.message); }
-      } else {
-        db = firebase.app().firestore();
-        updateCloudStatus('connected');
-      }
-    }
-
-    function disconnectFirebase(){
-      if(!confirm('Remove Firebase connection from this device?')) return;
-      localStorage.removeItem('firebase_config');
-      db = null;
-      updateCloudStatus('offline');
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el) el.value = '';
-      });
-    }
-
-    function cloudPush(key, value){
-      if(!db) return;
-      db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
-        .catch(e => console.warn('Cloud push failed for '+key+':', e));
     }
 
     async function cloudPull(key){
-      if(!db) return null;
+      if(!SERVER_AUTH.authenticated) return null;
       try{
-        const snap = await db.collection('niyakrish_data').doc(key).get();
-        if(snap.exists) return snap.data().value;
-      }catch(e){ console.warn('Cloud pull failed for '+key+':', e); }
-      return null;
+        const data = await apiFetch('/api/data/' + encodeURIComponent(key));
+        return data.value ?? null;
+      }catch(e){
+        console.warn('Server pull failed for '+key+':', e);
+        throw e;
+      }
     }
 
     async function loadFromCloud(manual){
-      if(!db){ if(manual) alert('No cloud connection. Configure Firebase first.'); return; }
+      if(!SERVER_AUTH.authenticated){ if(manual) showToast('Sign in to use server sync.', 'error'); return; }
       updateCloudStatus('syncing');
-      let loaded = 0;
+      let loaded = 0, failed = 0;
       for(const key of CLOUD_KEYS){
-        const val = await cloudPull(key);
-        if(val !== null){ localStorage.setItem(key, val); loaded++; }
+        try{
+          const val = await cloudPull(key);
+          if(val !== null){ _lsWriteRaw(key, val); loaded++; }
+        }catch(e){ failed++; }
       }
-      updateCloudStatus('connected');
-      if(manual){
-        alert('Loaded '+loaded+' collections from cloud. Refreshing…');
-        location.reload();
+      if(failed > 0){
+        updateCloudStatus('error');
+        if(manual) showToast('Server sync failed for '+failed+' collections.', 'error');
+      } else {
+        updateCloudStatus('connected');
+        _cloudPushErrorShown = false;
+        if(manual){
+          showToast('Loaded '+loaded+' collections from server.', 'success');
+          location.reload();
+        }
       }
     }
 
     async function syncLocalToCloud(){
-      if(!db){ alert('No cloud connection. Configure Firebase first.'); return; }
+      if(!SERVER_AUTH.authenticated){ showToast('Sign in to use server sync.', 'error'); return; }
       updateCloudStatus('syncing');
+      let pushed = 0, failed = 0;
       for(const key of CLOUD_KEYS){
         const val = localStorage.getItem(key);
-        if(val) await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
+        if(val){
+          try{
+            await apiFetch('/api/data/' + encodeURIComponent(key), {
+              method: 'PUT',
+              body: JSON.stringify({ value: val }),
+            });
+            pushed++;
+          }catch(e){ failed++; console.warn('Server sync push failed for '+key+':', e); }
+        }
       }
-      updateCloudStatus('connected');
-      alert('All local data pushed to cloud successfully!');
+      if(failed > 0){
+        updateCloudStatus('error');
+        showToast('Server push failed for '+failed+' collections.', 'error');
+      } else {
+        updateCloudStatus('connected');
+        showToast('All local data ('+pushed+' collections) pushed to server.', 'success');
+      }
     }
 
     function updateCloudStatus(state){
       let text, color;
       switch(state){
-        case 'connected': text = '☁️ Cloud Sync Active — Auto-saving to Firebase'; color = '#10b981'; break;
-        case 'syncing':   text = '⏳ Syncing with cloud…'; color = '#f59e0b'; break;
-        case 'error':     text = '⚠️ Cloud Error — Running in Offline Mode'; color = '#ef4444'; break;
-        default:          text = '💾 Safe Offline Storage Active'; color = '#6b7280';
+        case 'connected': text = 'Server Sync Active - auto-saving securely'; color = '#10b981'; break;
+        case 'syncing':   text = 'Syncing with server...'; color = '#f59e0b'; break;
+        case 'error':     text = 'Server Error - local cache active'; color = '#ef4444'; break;
+        default:          text = 'Local Cache Active - sign in for server sync'; color = '#6b7280';
       }
       const els = [document.getElementById('backup-status-text'), document.getElementById('cloud-sync-status')];
       els.forEach(el => { if(el){ el.textContent = text; el.style.color = color; } });
+    }
+
+    async function testServerConnection(){
+      try{
+        const health = await apiFetch('/api/health');
+        if(health.status === 'ok'){
+          updateCloudStatus(SERVER_AUTH.authenticated ? 'connected' : 'offline');
+          showToast('Backend is reachable.', 'success');
+        }
+      }catch(e){
+        updateCloudStatus('error');
+        showToast(e.message || 'Backend is not reachable.', 'error');
+      }
+    }
+
+    async function wipeServerData(){
+      if(!SERVER_AUTH.authenticated){ showToast('Sign in first.', 'error'); return; }
+      if(!confirm('FINAL WARNING: This wipes all server-side invoice data. Local browser data is untouched. Continue?')) return;
+      try{
+        await apiFetch('/api/data', { method: 'DELETE', body: '{}' });
+        showToast('Server data wiped successfully.', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not wipe server data.', 'error');
+      }
+    }
+
+    // Poll-based cross-device sync keeps the app simple and avoids external listeners.
+    let _syncPollTimer = null;
+
+    function startRealtimeSync(){
+      if(!SERVER_AUTH.authenticated) return;
+      stopRealtimeSync();
+      _syncPollTimer = setInterval(async () => {
+        try{ await loadFromCloud(false); refreshActiveView(); }
+        catch(e){ console.warn('Background sync failed:', e); }
+      }, 30000);
+    }
+
+    function stopRealtimeSync(){
+      if(_syncPollTimer) clearInterval(_syncPollTimer);
+      _syncPollTimer = null;
+    }
+
+    function _applyRealtimeUpdate(key){
+      if(key === 'company_settings'){
+        applyCompanySettings(getCompanySettings());
+        populateQuoteCompanyHeader();
+        populatePOCompanyHeader();
+      }
+      const isDataKey = ['invoices','invoice_payments','invoice_customers',
+                         'invoice_gatepasses','invoice_seq','gp_seq'].includes(key);
+      if(isDataKey){
+        updateDashboardMetrics();
+        renderDashboardCharts();
+      }
+      if(key === 'invoice_customers'){ loadAutofills(); populateQCustList(); }
+      if(key === 'invoice_seq' || key === 'gp_seq'){
+        const el = document.getElementById('invoiceNo');
+        if(el) el.value = peekNextInvoiceNo();
+      }
+      refreshActiveView();
     }
 
     // ======= DASHBOARD STATS & PURE SVG CHARTS =======
@@ -3037,6 +3896,147 @@
       loadAutofills();
     }
 
+    // ---- GSTIN API lookup (for brand-new customers not in database) ----
+    function _parseGSTINResponse(d) {
+      // Handle NIC / appyflow / activeinfotech response shapes
+      const info = d.taxpayerInfo || d.data || d;
+      const tradeName = info.tradeNam  || info.tradeName  || info.trade_name  || '';
+      const legalName = info.lgnm      || info.legalName  || info.legal_name  || '';
+      const name      = tradeName || legalName;
+      if (!name) throw new Error('No business name in response');
+
+      let address = '';
+      if (info.pradr) {
+        const a = info.pradr.addr || info.pradr;
+        address = [a.bno, a.bnm, a.st, a.loc, a.dst, a.stcd].filter(Boolean).join(', ');
+      }
+      if (!address) address = info.address || info.principalAddress || '';
+
+      const pincode = (info.pradr?.addr?.pncd) || info.pncd || info.pincode || '';
+      const state   = info.stj || info.state || '';
+      return { name, address, pincode, state };
+    }
+
+    async function _fetchGSTINDetails(gstin) {
+      // Build target URL for appyflow.in (free Indian GST API)
+      const target = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`;
+
+      // Try directly first (works if they add CORS headers), then via two CORS proxies
+      const attempts = [
+        { url: target, raw: true },
+        { url: `https://corsproxy.io/?url=${encodeURIComponent(target)}`, raw: true },
+        { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, raw: true }
+      ];
+
+      let lastErr;
+      for (const { url } of attempts) {
+        try {
+          const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(8000) });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const d = await res.json();
+          return _parseGSTINResponse(d);
+        } catch(e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('All GST lookup attempts failed');
+    }
+
+    function _setGSTINStatus(elId, msg, color) {
+      const el = document.getElementById(elId);
+      if (el) { el.textContent = msg; el.style.color = color; }
+    }
+
+    async function lookupCustomerByGSTIN() {
+      const gstin = document.getElementById('cust-gstin').value.trim().toUpperCase();
+      if (gstin.length !== 15) { _setGSTINStatus('cust-gstin-status', '', '#6b7280'); return; }
+
+      const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
+
+      // 1. Local customer database
+      const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
+      if (match) {
+        fill('cust-name',    match.name);
+        fill('cust-phone',   match.phone);
+        fill('cust-address', match.address);
+        fill('cust-site',    match.site);
+        fill('cust-pincode', match.pincode);
+        _setGSTINStatus('cust-gstin-status', '✓ Found in your records', '#16a34a');
+        showToast('✓ Customer details auto-filled from existing records', 'success');
+        return;
+      }
+
+      // 2. Invoice history
+      const invMatch = getStoredInvoices().find(i => (i.customer?.gstin||'').toUpperCase() === gstin);
+      if (invMatch) {
+        fill('cust-name',    invMatch.customer?.name);
+        fill('cust-phone',   invMatch.customer?.phone);
+        fill('cust-address', invMatch.customer?.address);
+        fill('cust-site',    invMatch.customer?.site);
+        _setGSTINStatus('cust-gstin-status', '✓ Found in invoice history', '#16a34a');
+        showToast('✓ Customer details found in invoice history', 'success');
+        return;
+      }
+
+      // 3. External GST API for brand-new customers
+      _setGSTINStatus('cust-gstin-status', '🔍 Looking up GST portal...', '#6b7280');
+      try {
+        const info = await _fetchGSTINDetails(gstin);
+        fill('cust-name',    info.name);
+        fill('cust-address', [info.address, info.state, info.pincode].filter(Boolean).join(', '));
+        fill('cust-pincode', info.pincode);
+        _setGSTINStatus('cust-gstin-status', '✓ Auto-filled from GST portal', '#16a34a');
+        showToast('✓ Business details fetched from GST portal', 'success');
+      } catch(e) {
+        _setGSTINStatus('cust-gstin-status', '⚠ GST lookup unavailable — fill manually', '#d97706');
+      }
+    }
+
+    async function lookupCustomerByGSTINInvoice() {
+      const gstin = (document.getElementById('custGSTIN')?.value || '').trim().toUpperCase();
+      if (gstin.length !== 15) return;
+
+      const fillIfEmpty = (id, val) => { const el=document.getElementById(id); if(el && !el.value.trim()) el.value = val||''; };
+
+      // 1. Local customer database
+      const match = getStoredCustomers().find(c => (c.gstin||'').toUpperCase() === gstin);
+      if (match) {
+        fillIfEmpty('custName',  match.name);
+        fillIfEmpty('custPhone', match.phone);
+        fillIfEmpty('custAddr',  match.address);
+        fillIfEmpty('siteAddr',  match.site);
+        fillIfEmpty('pincode',   match.pincode);
+        showToast('✓ Customer auto-filled from GSTIN', 'success');
+        return;
+      }
+
+      // 2. Invoice history
+      const invMatch = getStoredInvoices().find(i => (i.customer?.gstin||'').toUpperCase() === gstin);
+      if (invMatch) {
+        fillIfEmpty('custName',  invMatch.customer?.name);
+        fillIfEmpty('custPhone', invMatch.customer?.phone);
+        fillIfEmpty('custAddr',  invMatch.customer?.address);
+        fillIfEmpty('siteAddr',  invMatch.customer?.site);
+        showToast('✓ Customer auto-filled from invoice history', 'success');
+        return;
+      }
+
+      // 3. External GST API
+      const badge = document.getElementById('gstin-badge');
+      if (badge) { badge.textContent = '🔍 Looking up...'; badge.style.color = '#6b7280'; }
+      try {
+        const info = await _fetchGSTINDetails(gstin);
+        fillIfEmpty('custName', info.name);
+        fillIfEmpty('custAddr', [info.address, info.state].filter(Boolean).join(', '));
+        fillIfEmpty('pincode',  info.pincode);
+        if (badge) { badge.textContent = '✓ GST portal'; badge.style.color = '#16a34a'; }
+        showToast('✓ Business details fetched from GST portal', 'success');
+      } catch(e) {
+        if (badge) { badge.textContent = '⚠ lookup failed'; badge.style.color = '#d97706'; }
+        showToast('⚠ GST portal unavailable — please fill name & address manually', 'warning');
+      }
+    }
+
     function loadCustomerForEdit(id) {
       const cust = getStoredCustomers().find(c => c.id === id);
       if(!cust) return;
@@ -3072,6 +4072,7 @@
       document.getElementById('customer-form').reset();
       document.getElementById('pricing-manager-card').style.display = 'none';
       document.getElementById('cust-pricing-list-tbody').innerHTML = '';
+      _setGSTINStatus('cust-gstin-status', '', '#6b7280');
     }
 
     // Customer custom products pricing controllers
@@ -3199,11 +4200,11 @@
         
         // Outstanding balance warning
         const billed = getStoredInvoices()
-          .filter(i => (i.customer?.name || '').trim().toLowerCase() === c.name.trim().toLowerCase())
+          .filter(i => _nameMatch(i.customer?.name, c.name))
           .reduce((sum, i) => sum + (i.totals?.netAmount || 0), 0);
         
         const paid = getStoredPayments()
-          .filter(p => (p.customerName || '').trim().toLowerCase() === c.name.trim().toLowerCase())
+          .filter(p => _nameMatch(p.customerName, c.name))
           .reduce((sum, p) => sum + (p.amount || 0), 0);
         
         const bal = billed - paid;
@@ -3267,7 +4268,7 @@
 
       // Fetch unpaid invoices
       const invoices = getStoredInvoices().filter(i => 
-        (i.customer?.name || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(i.customer?.name, custName)
       );
 
       const unpaidList = invoices.filter(i => {
@@ -3355,7 +4356,7 @@
       } else {
         // General Payment: split dynamically across client's oldest unpaid invoices first
         const clientInvoices = allInvoices.filter(i => 
-          (i.customer?.name || '').trim().toLowerCase() === customerName.trim().toLowerCase()
+          _nameMatch(i.customer?.name, customerName)
         ).sort((a,b) => (a.invoiceDate || '').localeCompare(b.invoiceDate || ''));
 
         let remPayment = amount;
@@ -3400,7 +4401,7 @@
       } else {
         // Reverse General Payment allocation (subtract from newest paid client invoices down)
         const clientInvoices = allInvoices.filter(i => 
-          (i.customer?.name || '').trim().toLowerCase() === p.customerName.trim().toLowerCase()
+          _nameMatch(i.customer?.name, p.customerName)
         ).sort((a,b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || '')); // Newest first
 
         let remRev = p.amount;
@@ -3467,7 +4468,7 @@
       }
 
       // Populate profile info if available
-      const customerBase = getStoredCustomers().find(c => c.name.trim().toLowerCase() === custName.trim().toLowerCase());
+      const customerBase = getStoredCustomers().find(c => _nameMatch(c.name, custName));
       if(customerBase) {
         if(profileName) profileName.textContent = customerBase.name;
         if(profilePhone) profilePhone.textContent = 'Phone: ' + (customerBase.phone || '-');
@@ -3482,10 +4483,10 @@
 
       // Build Ledger Statement List
       const invoices = getStoredInvoices().filter(i => 
-        (i.customer?.name || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(i.customer?.name, custName)
       );
       const payments = getStoredPayments().filter(p => 
-        (p.customerName || '').trim().toLowerCase() === custName.trim().toLowerCase()
+        _nameMatch(p.customerName, custName)
       );
 
       // Merge transactions chronologically
@@ -3608,7 +4609,7 @@
       );
       if (dateFrom) data = data.filter(i => i.invoiceDate && i.invoiceDate.slice(0,10) >= dateFrom);
       if (dateTo)   data = data.filter(i => i.invoiceDate && i.invoiceDate.slice(0,10) <= dateTo);
-      if (custFilter) data = data.filter(i => (i.customer?.name || '').trim().toLowerCase() === custFilter.trim().toLowerCase());
+      if (custFilter) data = data.filter(i => _nameMatch(i.customer?.name, custFilter));
       if (statusFilter) data = data.filter(i => (i.status || 'Unpaid').toLowerCase() === statusFilter.toLowerCase());
 
       data.sort((a,b) => String(b.invoiceNo || '').localeCompare(String(a.invoiceNo || '')));
@@ -3794,19 +4795,19 @@
       if(logoEl) logoEl.src = '';
     }
 
-    // ======= Firebase Settings Lock =======
-    async function unlockFirebaseSettings() {
+    // ======= Server Settings Lock =======
+    async function unlockServerSettings() {
       const passInput = document.getElementById('fb-unlock-pass');
       const errEl     = document.getElementById('fb-unlock-err');
       const pass      = passInput?.value || '';
       if(!pass){ if(errEl) errEl.textContent = 'Enter password.'; return; }
+      if(!SERVER_AUTH.authenticated){ if(errEl) errEl.textContent = 'Sign in first.'; return; }
 
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
+      try{
+        await apiFetch('/api/auth/verify', {
+          method: 'POST',
+          body: JSON.stringify({ username: SERVER_AUTH.username, password: pass }),
+        });
         document.getElementById('fb-locked-panel').style.display = 'none';
         document.getElementById('fb-config-panel').style.display = 'block';
         const badge = document.getElementById('fb-lock-badge');
@@ -3814,14 +4815,14 @@
         if(passInput) passInput.value = '';
         if(errEl) errEl.textContent = '';
         clearTimeout(window._fbAutoLockTimer);
-        window._fbAutoLockTimer = setTimeout(lockFirebaseSettings, 5 * 60 * 1000);
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
+        window._fbAutoLockTimer = setTimeout(lockServerSettings, 5 * 60 * 1000);
+      } catch(e) {
+        if(errEl) errEl.textContent = e.message || 'Incorrect password.';
         if(passInput) passInput.value = '';
       }
     }
 
-    function lockFirebaseSettings() {
+    function lockServerSettings() {
       const lp = document.getElementById('fb-locked-panel');
       const cp = document.getElementById('fb-config-panel');
       const badge = document.getElementById('fb-lock-badge');
@@ -3840,19 +4841,19 @@
       const errEl     = document.getElementById('wipe-unlock-err');
       const pass      = passInput?.value || '';
       if(!pass){ if(errEl) errEl.textContent = 'Enter admin password to proceed.'; return; }
+      if(!SERVER_AUTH.authenticated){ if(errEl) errEl.textContent = 'Sign in first.'; return; }
 
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
+      try{
+        await apiFetch('/api/auth/verify', {
+          method: 'POST',
+          body: JSON.stringify({ username: SERVER_AUTH.username, password: pass }),
+        });
         if(passInput) passInput.value = '';
-        if(!confirm('⚠️ FINAL WARNING: This will permanently wipe ALL local data — invoices, customers, payments, gate passes. This cannot be undone. Continue?')) return;
+        if(!confirm('FINAL WARNING: This will permanently wipe local browser data. Server data is untouched unless you use Wipe Server Data. Continue?')) return;
         localStorage.clear();
         location.reload();
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
+      } catch(e) {
+        if(errEl) errEl.textContent = e.message || 'Incorrect password.';
         if(passInput) passInput.value = '';
       }
     }
@@ -3948,8 +4949,8 @@
       const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const headers = ['Date','Type','Reference','Debit (Invoice ₹)','Credit (Payment ₹)','Running Balance ₹'];
       let csv = headers.map(esc).join(',') + '\n';
-      let invs = getStoredInvoices().filter(i => (i.customer?.name||'').trim().toLowerCase() === custName.trim().toLowerCase());
-      let pays = getStoredPayments().filter(p => (p.customerName||'').trim().toLowerCase() === custName.trim().toLowerCase());
+      let invs = getStoredInvoices().filter(i => _nameMatch(i.customer?.name, custName));
+      let pays = getStoredPayments().filter(p => _nameMatch(p.customerName, custName));
       const txs = [];
       invs.forEach(i => txs.push({ date: i.invoiceDate?i.invoiceDate.slice(0,10):'', type:'Invoice', ref:i.invoiceNo, debit:i.totals?.netAmount||0, credit:0 }));
       pays.forEach(p => txs.push({ date:p.date, type:`Payment (${p.paymentMode})`, ref:p.refNo||'Receipt', debit:0, credit:p.amount }));
@@ -4056,7 +5057,8 @@
     }
 
     function setInvoiceDateNow() {
-      document.getElementById('invoiceDate').value = new Date().toISOString().slice(0, 16);
+      const el = document.getElementById('invoiceDate');
+      if(el){ el.value = _localDateTimeStr(); el.dataset.manuallySet = '1'; }
     }
 
     // ======= AUTO-SAVE NEW CUSTOMER FROM INVOICE =======
@@ -4065,7 +5067,7 @@
       if (!custName) return false;
 
       const all = getStoredCustomers();
-      const exists = all.find(c => c.name.trim().toLowerCase() === custName.toLowerCase());
+      const exists = all.find(c => _nameMatch(c.name, custName));
       if (exists) {
         // Customer already in DB — update rates if new grades appear
         const idx = all.indexOf(exists);
@@ -4124,7 +5126,7 @@
       const n = v !== null ? parseInt(v, 10) : 0;
       if(n < MIN_SEQ){
         // Stored value is below the floor — correct it immediately in both
-        // localStorage and Firestore so every device stays consistent
+        // localStorage and the backend so every device stays consistent
         localStorage.setItem('invoice_seq', String(MIN_SEQ));
         cloudPush('invoice_seq', String(MIN_SEQ));
         return MIN_SEQ;
@@ -4165,9 +5167,18 @@
       if(!document.querySelector('#itemsBody tr')) addRow();
       recalcAll();
     }
+    // Debounced wrapper — used for interactive input events only.
+    // Synchronous recalcAll() is still called directly wherever code needs immediate totals.
+    let _recalcTimer = null;
+    function recalcAllDebounced() {
+      clearTimeout(_recalcTimer);
+      _recalcTimer = setTimeout(recalcAll, APP.RECALC_DEBOUNCE_MS);
+    }
+
     function setupRowListeners(ctx){
       const root = ctx || document;
-      root.querySelectorAll('.item-qty, .item-rate, .item-disc, .item-cgst, .item-sgst').forEach(i=> i.addEventListener('input', recalcAll));
+      root.querySelectorAll('.item-qty, .item-rate, .item-disc, .item-cgst, .item-sgst')
+        .forEach(i => i.addEventListener('input', recalcAllDebounced));
     }
 
     /* ========= Summary Functions ========= */
@@ -4196,16 +5207,14 @@
         table.innerHTML=`<caption style="font-weight:700;margin:6px">${type.toUpperCase()}</caption>
           <thead><tr><th>Period</th><th>No. Invoices</th><th>Parties</th><th>Net</th><th>CGST</th><th>SGST</th></tr></thead>`;
         const tb=document.createElement("tbody");
-        Object.entries(groups).forEach(([k,v])=>{
-          tb.innerHTML+=`<tr>
+        tb.innerHTML = Object.entries(groups).map(([k,v])=>`<tr>
             <td>${k}</td>
             <td>${v.length}</td>
-            <td>${v.map(x=>x.customer?.name).join(", ")}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.netAmount,0))}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.cgstTotal,0))}</td>
-            <td>${formatNum(v.reduce((a,b)=>a+b.totals?.sgstTotal,0))}</td>
-          </tr>`;
-        });
+            <td>${v.map(x=>escapeHtml(x.customer?.name||'')).join(", ")}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.netAmount||0),0))}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.cgstTotal||0),0))}</td>
+            <td>${formatNum(v.reduce((a,b)=>a+(b.totals?.sgstTotal||0),0))}</td>
+          </tr>`).join('');
         table.appendChild(tb);container.appendChild(table);
       });
       const summaryModal = document.getElementById("summaryModal");
@@ -4359,7 +5368,8 @@
     function loadInvoice(inv){
       // Header
       document.getElementById('invoiceNo').value = inv.invoiceNo || peekNextInvoiceNo();
-      document.getElementById('invoiceDate').value = inv.invoiceDate || new Date().toISOString().slice(0,16);
+      const _dateEl = document.getElementById('invoiceDate');
+      if(_dateEl){ _dateEl.value = inv.invoiceDate || _localDateTimeStr(); _dateEl.dataset.manuallySet = '1'; }
       document.getElementById('poNumber').value = inv.poNumber || '';
       if (document.getElementById('dueDate')) document.getElementById('dueDate').value = inv.dueDate || '';
       // Customer
@@ -4395,7 +5405,7 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="no-print" style="text-align:center"><input type="checkbox" class="row-select"/></td>
-          <td><input class="item-grade" value="${row.grade??'M30'}" oninput="handleGradeInputChange(this)"/></td>
+          <td><input class="item-grade" value="${escapeHtml(row.grade??'M30')}" oninput="handleGradeInputChange(this)"/></td>
           <td><input class="item-qty" type="number" step="0.01" value="${(row.qty??0).toFixed(2)}"/></td>
           <td><input class="item-rate" type="number" step="0.01" value="${(row.rate??0).toFixed(2)}"/></td>
           <td><input class="item-disc" type="number" step="0.01" value="${(row.disc_pct??0).toFixed(2)}" min="0" max="100"/></td>
@@ -4500,7 +5510,7 @@
       }
 
       if(custSelect) {
-        data = data.filter(inv => (inv.customer?.name || '').trim().toLowerCase() === custSelect.trim().toLowerCase());
+        data = data.filter(inv => _nameMatch(inv.customer?.name, custSelect));
       }
 
       if(statusSelect) {
@@ -4571,13 +5581,9 @@
       const dateEl = document.getElementById('invoiceDate');
       if(dateEl) delete dateEl.dataset.manuallySet;
 
-      const now = new Date();
-      const pad2 = n => String(n).padStart(2,'0');
-      const nowLocal = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-
       const inv = {
         invoiceNo: nextNo,
-        invoiceDate: nowLocal,
+        invoiceDate: _localDateTimeStr(),
         poNumber: "",
         customer: { name: "", phone: "", address: "", site: "", pin: "" },
         product: { hsnCode: "38245010", hsnDesc: "READY MIX CONCRETE", productName: "Ready Mix Concrete", driverName: "", vehicleNo: "" },
@@ -4595,6 +5601,10 @@
       if (warnBanner) warnBanner.style.display = 'none';
 
       loadInvoice(inv);
+
+      // New invoice: allow live clock to keep updating the date
+      const _newDateEl = document.getElementById('invoiceDate');
+      if(_newDateEl) delete _newDateEl.dataset.manuallySet;
 
       // Re-enforce readonly state based on current mode
       const invNoInput = document.getElementById('invoiceNo');
@@ -4741,7 +5751,7 @@
 
       const dupInvoice = Object.assign({}, current);
       dupInvoice.invoiceNo = nextNo;
-      dupInvoice.invoiceDate = new Date().toISOString().slice(0,16);
+      dupInvoice.invoiceDate = _localDateTimeStr();
       dupInvoice.paidAmount = 0;
       dupInvoice.status = 'Unpaid';
 
@@ -5003,7 +6013,7 @@
       const now = new Date();
       const gpdateInput = document.getElementById('gpdate');
       if (gpdateInput) {
-        gpdateInput.value = now.toISOString().slice(0, 16);
+        gpdateInput.value = _localDateTimeStr(now);
       }
       
       // Only generate a new GP number if the field is empty
@@ -5260,8 +6270,7 @@
     }
 
     function getCompanySettings() {
-      try { return JSON.parse(localStorage.getItem('company_settings') || 'null') || getDefaultCompanySettings(); }
-      catch(e) { return getDefaultCompanySettings(); }
+      return _lsRead('company_settings', 'null') || getDefaultCompanySettings();
     }
 
     function saveCompanySettings(e) {
@@ -5279,8 +6288,7 @@
         bankBranch: document.getElementById('cs-bank-branch').value.trim(),
         logoUrl:    document.getElementById('cs-logo-url').value.trim()
       };
-      localStorage.setItem('company_settings', JSON.stringify(s));
-      cloudPush('company_settings', JSON.stringify(s));
+      cloudPush('company_settings', _lsWrite('company_settings', s));
       applyCompanySettings(s);
       showToast('✓ Company settings saved & applied to all invoices', 'success');
     }
@@ -5373,27 +6381,475 @@
       }
     });
 
+    // ======= QUOTATION MODULE =======
+    function getStoredQuotations(){ return _lsRead('quotations', '[]'); }
+    function saveStoredQuotations(arr){ cloudPush('quotations', _lsWrite('quotations', arr)); }
+
+    function getQuoteSeq(){ return parseInt(localStorage.getItem('quote_seq')||'0',10); }
+    function setQuoteSeq(v){ localStorage.setItem('quote_seq', String(v)); cloudPush('quote_seq', String(v)); }
+    function consumeNextQuoteNo(){ const n = getQuoteSeq()+1; setQuoteSeq(n); return 'QT-'+String(n).padStart(3,'0'); }
+    function peekNextQuoteNo(){ return 'QT-'+String(getQuoteSeq()+1).padStart(3,'0'); }
+
+    function populateQCustList(){
+      const dl = document.getElementById('q-cust-list');
+      if(!dl) return;
+      const customers = getStoredCustomers();
+      dl.innerHTML = customers.map(c=>`<option value="${escapeHtml(c.name)}">`).join('');
+    }
+
+    const _NIYA_LOGO_B64 = 'data:image/png;base64,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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcSv8NdXvvPUwqyZUAAAAASUVORK5CYII=';
+
+    function populateQuoteCompanyHeader(){
+      const cs = getCompanySettings();
+      const nm = cs.name || cs.companyName || '';
+      const setT = (id,v) => { const e=document.getElementById(id); if(e) e.textContent=v||''; };
+      setT('q-co-name', nm);
+      setT('q-co-addr', cs.address || '');
+      setT('q-co-gstin', [cs.gstin ? 'GSTIN: '+cs.gstin : '', cs.phone ? 'Ph: '+cs.phone : ''].filter(Boolean).join(' | '));
+      setT('q-auth-co-name', nm);
+      const logoEl = document.getElementById('q-logo-img');
+      if(logoEl){ const src=cs.logo||_NIYA_LOGO_B64; if(src){ logoEl.src=src; logoEl.style.display='block'; }else logoEl.style.display='none'; }
+    }
+
+    function updateQuoteDisplayFields(){
+      const v = id => document.getElementById(id)?.value || '';
+      const setT = (id,val) => { const e=document.getElementById(id); if(e) e.textContent=val; };
+      const dateStr = v('q-date') ? new Date(v('q-date')).toLocaleDateString('en-IN') : '—';
+      const validStr = v('q-valid-until') ? new Date(v('q-valid-until')).toLocaleDateString('en-IN') : '—';
+      setT('q-display-no', v('q-no')||'—');
+      setT('q-display-date', dateStr);
+      setT('q-display-valid', validStr);
+      // Customer print fields
+      setT('q-print-cust-name', v('q-cust-name'));
+      setT('q-print-cust-phone', v('q-cust-phone') ? 'Ph: '+v('q-cust-phone') : '');
+      setT('q-print-cust-gstin', v('q-cust-gstin') ? 'GSTIN: '+v('q-cust-gstin') : '');
+      const addrEl = document.getElementById('q-print-cust-addr');
+      if(addrEl) addrEl.textContent = v('q-cust-addr');
+      setT('q-print-cust-site', v('q-cust-site') ? 'Site: '+v('q-cust-site') : '');
+      // Terms print
+      const tEl = document.getElementById('q-terms-print');
+      if(tEl) tEl.textContent = document.getElementById('q-terms')?.value || '';
+    }
+
+    function addQuoteRow(desc='', qty='', unit='', rate='', disc='0', cgst='9', sgst='9'){
+      const tbody = document.getElementById('quote-rows-body');
+      if(!tbody) return;
+      const sl = tbody.children.length + 1;
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td style="padding:4px; text-align:center; font-size:12px; color:#6b7280; border-right:1px solid #f1f5f9;" class="q-sl">${sl}</td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="text" class="q-desc" value="${escapeHtml(desc)}" placeholder="Item description" style="width:100%; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center; border-right:1px solid #f1f5f9;"><input type="number" class="q-qty" value="${qty}" min="0" step="any" style="width:55px; text-align:right; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center; border-right:1px solid #f1f5f9;"><input type="text" class="q-unit" value="${unit}" placeholder="m³" style="width:45px; text-align:center; font-size:12px;"></td>
+        <td style="padding:4px; text-align:right; border-right:1px solid #f1f5f9;"><input type="number" class="q-rate" value="${rate}" min="0" step="any" style="width:70px; text-align:right; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center; border-right:1px solid #f1f5f9;"><input type="number" class="q-disc" value="${disc}" min="0" max="100" style="width:40px; text-align:center; font-size:12px;" oninput="calcQuoteTotals()"></td>
+        <td style="padding:4px; text-align:center; border-right:1px solid #f1f5f9;">
+          <input type="number" class="q-gst" value="${cgst}" min="0" style="width:38px; text-align:center; font-size:12px;" oninput="calcQuoteTotals()" title="Combined GST% (CGST+SGST)">
+        </td>
+        <td style="padding:4px; text-align:right; font-size:12px; font-weight:600;" class="q-amount">₹0.00</td>
+        <td class="no-print" style="padding:4px; text-align:center;">
+          <button onclick="this.closest('tr').remove(); calcQuoteTotals(); _renumberQuoteRows();" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:16px;" title="Remove row">×</button>
+        </td>`;
+      tbody.appendChild(tr);
+      calcQuoteTotals();
+    }
+    function _renumberQuoteRows(){
+      document.querySelectorAll('#quote-rows-body tr').forEach((r,i)=>{ const sl=r.querySelector('.q-sl'); if(sl) sl.textContent=i+1; });
+    }
+
+    function calcQuoteTotals(){
+      const rows = document.querySelectorAll('#quote-rows-body tr');
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(row=>{
+        const qty = parseFloat(row.querySelector('.q-qty')?.value)||0;
+        const rate = parseFloat(row.querySelector('.q-rate')?.value)||0;
+        const disc = parseFloat(row.querySelector('.q-disc')?.value)||0;
+        const gst = parseFloat(row.querySelector('.q-gst')?.value)||0;
+        const gross = qty * rate * (1 - disc/100);
+        const halfGst = gross * (gst/2) / 100;
+        sub += gross; cgstT += halfGst; sgstT += halfGst;
+        const amtEl = row.querySelector('.q-amount');
+        if(amtEl) amtEl.textContent = '₹'+formatNum(gross + halfGst*2);
+      });
+      const net = sub + cgstT + sgstT;
+      const se = id => document.getElementById(id);
+      if(se('q-subtotal')) se('q-subtotal').textContent = '₹'+formatNum(sub);
+      if(se('q-cgst-total')) se('q-cgst-total').textContent = '₹'+formatNum(cgstT);
+      if(se('q-sgst-total')) se('q-sgst-total').textContent = '₹'+formatNum(sgstT);
+      if(se('q-net-amount')) se('q-net-amount').textContent = '₹'+formatNum(net);
+    }
+
+    function newQuotation(){
+      const no = peekNextQuoteNo();
+      const today = _localDateStr();
+      const validDate = new Date(); validDate.setDate(validDate.getDate()+30);
+      const validStr = _localDateStr(validDate);
+      const ids = ['q-no','q-date','q-valid-until','q-status','q-cust-name','q-cust-phone','q-cust-gstin','q-cust-addr','q-cust-site','q-terms','q-notes'];
+      const vals = [no, today, validStr, 'Draft', '', '', '', '', '', '', ''];
+      ids.forEach((id,i)=>{ const el=document.getElementById(id); if(el) el.value=vals[i]; });
+      document.getElementById('quote-rows-body').innerHTML = '';
+      addQuoteRow('', '1', 'm³', '', '0', '9', '9');
+      calcQuoteTotals();
+      populateQuoteCompanyHeader();
+      populateQCustList();
+      updateQuoteDisplayFields();
+    }
+
+    function serializeQuotation(){
+      const v = id => document.getElementById(id)?.value||'';
+      const rows = [...document.querySelectorAll('#quote-rows-body tr')].map(row=>({
+        description: row.querySelector('.q-desc')?.value||'',
+        qty: parseFloat(row.querySelector('.q-qty')?.value)||0,
+        unit: row.querySelector('.q-unit')?.value||'',
+        rate: parseFloat(row.querySelector('.q-rate')?.value)||0,
+        disc_pct: parseFloat(row.querySelector('.q-disc')?.value)||0,
+        gst_pct: parseFloat(row.querySelector('.q-gst')?.value)||0,
+      }));
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(r=>{ const g=r.qty*r.rate*(1-r.disc_pct/100); const hg=g*(r.gst_pct/2)/100; sub+=g; cgstT+=hg; sgstT+=hg; });
+      return {
+        quoteNo: v('q-no'), quoteDate: v('q-date'), validUntil: v('q-valid-until'),
+        status: v('q-status'),
+        customer: { name:v('q-cust-name'), phone:v('q-cust-phone'), gstin:v('q-cust-gstin'), address:v('q-cust-addr'), site:v('q-cust-site') },
+        rows, totals: { subTotal:sub, cgstTotal:cgstT, sgstTotal:sgstT, netAmount:sub+cgstT+sgstT },
+        terms: v('q-terms'), notes: v('q-notes'),
+        convertedToInvoice: null, savedAt: new Date().toISOString()
+      };
+    }
+
+    function saveQuotation(){
+      const q = serializeQuotation();
+      if(!q.customer.name){ showToast('Enter customer name.','error'); return; }
+      if(!q.quoteNo){ showToast('Quote number is missing.','error'); return; }
+      const all = getStoredQuotations();
+      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
+      const isNew = idx===-1;
+      if(isNew){ consumeNextQuoteNo(); all.push(q); }
+      else all[idx]=q;
+      saveStoredQuotations(all);
+      showToast((isNew?'✓ Quotation saved: ':'✓ Quotation updated: ')+q.quoteNo,'success');
+    }
+
+    function loadQuotation(q){
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('q-no', q.quoteNo); se('q-date', q.quoteDate); se('q-valid-until', q.validUntil||'');
+      se('q-status', q.status||'Draft'); se('q-cust-name', q.customer?.name||'');
+      se('q-cust-phone', q.customer?.phone||''); se('q-cust-gstin', q.customer?.gstin||'');
+      se('q-cust-addr', q.customer?.address||''); se('q-cust-site', q.customer?.site||'');
+      se('q-terms', q.terms||''); se('q-notes', q.notes||'');
+      document.getElementById('quote-rows-body').innerHTML='';
+      (q.rows||[]).forEach(r=>addQuoteRow(r.description,r.qty,r.unit,r.rate,r.disc_pct,r.gst_pct,r.gst_pct));
+      calcQuoteTotals(); populateQuoteCompanyHeader(); updateQuoteDisplayFields();
+    }
+
+    function deleteQuotation(quoteNo){
+      if(!confirm('Delete quotation '+quoteNo+'?')) return;
+      const all = getStoredQuotations().filter(q=>q.quoteNo!==quoteNo);
+      saveStoredQuotations(all);
+      renderQHistoryView();
+      showToast('Quotation deleted.','success');
+    }
+
+    function printQuotation(){
+      updateQuoteDisplayFields();
+      const panel = document.getElementById('view-quotation');
+      const sheet = document.getElementById('quote-sheet');
+      if(panel) panel.classList.add('active-print');
+      if(sheet) sheet.classList.add('active-print');
+      window.print();
+      if(panel) panel.classList.remove('active-print');
+      if(sheet) sheet.classList.remove('active-print');
+    }
+
+    function convertQuoteToInvoice(){
+      const q = serializeQuotation();
+      if(!q.customer.name){ showToast('Save the quotation first.','error'); return; }
+      // Populate invoice form with quote data
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
+      se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
+      se('customerSite', q.customer.site);
+      // Mark the quotation as converted
+      const all = getStoredQuotations();
+      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
+      if(idx!==-1){ all[idx].convertedToInvoice=peekNextInvoiceNo(); saveStoredQuotations(all); }
+      switchView('invoice');
+      newInvoice();
+      // Re-populate customer after newInvoice resets
+      setTimeout(()=>{
+        se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
+        se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
+        se('customerSite', q.customer.site);
+      }, 50);
+      showToast('✓ Quote data copied to Invoice Builder.','success');
+    }
+
+    function renderQHistoryView(){
+      const all = getStoredQuotations().sort((a,b)=>b.quoteNo.localeCompare(a.quoteNo));
+      const search = (document.getElementById('qh-search')?.value||'').toLowerCase();
+      const from = document.getElementById('qh-from')?.value||'';
+      const to = document.getElementById('qh-to')?.value||'';
+      const status = document.getElementById('qh-status')?.value||'';
+      const filtered = all.filter(q=>{
+        if(search && !q.quoteNo.toLowerCase().includes(search) && !(q.customer?.name||'').toLowerCase().includes(search)) return false;
+        if(from && q.quoteDate < from) return false;
+        if(to && q.quoteDate > to) return false;
+        if(status && q.status!==status) return false;
+        return true;
+      });
+      const statusColor = s => ({Draft:'#6b7280',Sent:'#4f46e5',Accepted:'#10b981',Rejected:'#ef4444',Expired:'#f59e0b'}[s]||'#6b7280');
+      const tbody = document.getElementById('qhistory-body');
+      if(!tbody) return;
+      if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No quotations found.</td></tr>'; return; }
+      tbody.innerHTML = filtered.map(q=>`
+        <tr style="border-bottom:1px solid #f1f5f9; cursor:pointer;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+          <td style="padding:10px 8px; font-weight:600; color:#4f46e5;">${escapeHtml(q.quoteNo)}</td>
+          <td style="padding:10px 8px;">${q.quoteDate ? new Date(q.quoteDate).toLocaleDateString('en-IN') : '-'}</td>
+          <td style="padding:10px 8px;">${escapeHtml(q.customer?.name||'-')}</td>
+          <td style="padding:10px 8px; color:#f59e0b;">${q.validUntil ? new Date(q.validUntil).toLocaleDateString('en-IN') : '-'}</td>
+          <td style="padding:10px 8px; text-align:right; font-weight:600;">₹${formatNum(q.totals?.netAmount||0)}</td>
+          <td style="padding:10px 8px; text-align:center;">
+            <span style="background:${statusColor(q.status)}22; color:${statusColor(q.status)}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${escapeHtml(q.status||'Draft')}</span>
+            ${q.convertedToInvoice ? '<br><span style="font-size:10px; color:#10b981;">→ Inv '+escapeHtml(q.convertedToInvoice)+'</span>' : ''}
+          </td>
+          <td style="padding:10px 8px; text-align:center; white-space:nowrap;">
+            <button class="btn secondary" style="font-size:11px; padding:4px 8px;" onclick="loadQuotation(getStoredQuotations().find(x=>x.quoteNo==='${escapeHtml(q.quoteNo)}')); switchView('quotation');">Edit</button>
+            <button class="btn secondary" style="font-size:11px; padding:4px 8px;" onclick="loadQuotation(getStoredQuotations().find(x=>x.quoteNo==='${escapeHtml(q.quoteNo)}')); switchView('quotation'); setTimeout(printQuotation,100);">Print</button>
+            <button class="btn" style="font-size:11px; padding:4px 8px; background:#ef4444; color:#fff;" onclick="deleteQuotation('${escapeHtml(q.quoteNo)}')">Del</button>
+          </td>
+        </tr>`).join('');
+    }
+
+    // ======= PURCHASE ORDER MODULE =======
+    function getStoredPOs(){ return _lsRead('purchase_orders', '[]'); }
+    function saveStoredPOs(arr){ cloudPush('purchase_orders', _lsWrite('purchase_orders', arr)); }
+
+    function getPOSeq(){ return parseInt(localStorage.getItem('po_seq')||'0',10); }
+    function setPOSeq(v){ localStorage.setItem('po_seq', String(v)); cloudPush('po_seq', String(v)); }
+    function consumeNextPONo(){ const n=getPOSeq()+1; setPOSeq(n); return 'PO-'+String(n).padStart(3,'0'); }
+    function peekNextPONo(){ return 'PO-'+String(getPOSeq()+1).padStart(3,'0'); }
+
+    function populatePOCompanyHeader(){
+      const cs = getCompanySettings();
+      const nm = cs.name || cs.companyName || '';
+      const setT=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v||''; };
+      setT('po-co-name', nm);
+      setT('po-co-addr', cs.address || '');
+      setT('po-co-gstin', cs.gstin ? 'GSTIN: '+cs.gstin : '');
+      setT('po-co-phone', cs.phone ? 'Ph: '+cs.phone : '');
+      setT('po-auth-co-name', nm);
+      // Ship To = company's own delivery address
+      setT('po-shipto-name', nm);
+      setT('po-shipto-addr', cs.address || '');
+      setT('po-shipto-gstin', cs.gstin ? 'GSTIN: '+cs.gstin : '');
+      const logoEl = document.getElementById('po-logo-img');
+      if(logoEl){ const src=cs.logo||_NIYA_LOGO_B64; if(src){ logoEl.src=src; logoEl.style.display='block'; }else logoEl.style.display='none'; }
+    }
+
+    function updatePODisplayFields(){
+      const v = id => document.getElementById(id)?.value||'';
+      const setT=(id,val)=>{ const e=document.getElementById(id); if(e) e.textContent=val; };
+      const dateStr = v('po-date') ? new Date(v('po-date')).toLocaleDateString('en-IN') : '—';
+      const delivStr = v('po-delivery-date') ? new Date(v('po-delivery-date')).toLocaleDateString('en-IN') : '—';
+      const refStr = v('po-quote-ref') || '—';
+      setT('po-display-no', v('po-no')||'—');
+      setT('po-display-date', dateStr);
+      setT('po-display-ref', refStr);
+      setT('po-display-delivery', delivStr);
+      setT('po-print-vendor-name', v('po-vendor-name') ? 'M/s. '+v('po-vendor-name') : '');
+      setT('po-print-vendor-contact', v('po-vendor-contact') ? 'Contact Person: '+v('po-vendor-contact') : '');
+      setT('po-print-vendor-phone', v('po-vendor-phone') ? 'Phone: '+v('po-vendor-phone') : '');
+      setT('po-print-vendor-gstin', v('po-vendor-gstin') ? 'GSTIN: '+v('po-vendor-gstin') : '');
+      const addrEl = document.getElementById('po-print-vendor-addr');
+      if(addrEl) addrEl.textContent = v('po-vendor-addr');
+      const tEl = document.getElementById('po-terms-print');
+      if(tEl) tEl.textContent = document.getElementById('po-terms')?.value||'';
+      const freightEl = document.getElementById('po-freight-print');
+      const freight = parseFloat(v('po-freight'))||0;
+      if(freightEl) freightEl.textContent = '₹'+formatNum(freight);
+    }
+
+    function addPORow(desc='', qty='', unit='', rate='', gst='18', hsn=''){
+      const tbody = document.getElementById('po-rows-body');
+      if(!tbody) return;
+      const sl = tbody.children.length + 1;
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.innerHTML = `
+        <td style="padding:4px; text-align:center; font-size:12px; color:#6b7280; border-right:1px solid #f1f5f9;" class="po-sl">${sl}</td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="text" class="po-desc" value="${escapeHtml(desc)}" placeholder="Item description" style="width:100%; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="text" class="po-hsn" value="${escapeHtml(hsn)}" placeholder="HSN" style="width:100%; font-size:11px; text-align:center;"></td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="number" class="po-qty" value="${qty}" min="0" step="any" style="width:55px; text-align:right; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="text" class="po-unit" value="${unit}" placeholder="Nos" style="width:45px; font-size:11px; text-align:center;"></td>
+        <td style="padding:4px; border-right:1px solid #f1f5f9;"><input type="number" class="po-rate" value="${rate}" min="0" step="any" style="width:75px; text-align:right; font-size:12px;" oninput="calcPOTotals()"></td>
+        <td style="padding:4px; text-align:center; border-right:1px solid #f1f5f9;"><input type="number" class="po-gst" value="${gst}" min="0" style="width:40px; text-align:center; font-size:12px;" oninput="calcPOTotals()" title="Combined GST%"></td>
+        <td style="padding:4px; text-align:right; font-size:12px; font-weight:600;" class="po-amount">₹0.00</td>
+        <td class="no-print" style="padding:4px; text-align:center;">
+          <button onclick="this.closest('tr').remove(); calcPOTotals(); _renumberPORows();" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;" title="Remove">×</button>
+        </td>`;
+      tbody.appendChild(tr);
+      calcPOTotals();
+    }
+    function _renumberPORows(){
+      document.querySelectorAll('#po-rows-body tr').forEach((r,i)=>{ const sl=r.querySelector('.po-sl'); if(sl) sl.textContent=i+1; });
+    }
+
+    function calcPOTotals(){
+      const rows = document.querySelectorAll('#po-rows-body tr');
+      let sub=0, cgstT=0, sgstT=0;
+      rows.forEach(row=>{
+        const qty=parseFloat(row.querySelector('.po-qty')?.value)||0;
+        const rate=parseFloat(row.querySelector('.po-rate')?.value)||0;
+        const gst=parseFloat(row.querySelector('.po-gst')?.value)||0;
+        const gross=qty*rate;
+        const halfGst=gross*(gst/2)/100;
+        sub+=gross; cgstT+=halfGst; sgstT+=halfGst;
+        const amtEl=row.querySelector('.po-amount');
+        if(amtEl) amtEl.textContent='₹'+formatNum(gross+halfGst*2);
+      });
+      const freight=parseFloat(document.getElementById('po-freight')?.value)||0;
+      const net=sub+cgstT+sgstT+freight;
+      const se=id=>document.getElementById(id);
+      if(se('po-subtotal')) se('po-subtotal').textContent='₹'+formatNum(sub);
+      if(se('po-cgst-total')) se('po-cgst-total').textContent='₹'+formatNum(cgstT);
+      if(se('po-sgst-total')) se('po-sgst-total').textContent='₹'+formatNum(sgstT);
+      if(se('po-net-amount')) se('po-net-amount').textContent='₹'+formatNum(net);
+      if(se('po-amount-words')) se('po-amount-words').textContent=numberToWords(net);
+      const freightPrint=document.getElementById('po-freight-print');
+      if(freightPrint) freightPrint.textContent='₹'+formatNum(freight);
+    }
+
+    const _PO_DEFAULT_TERMS = `1.  Please quote the Purchase Order number on all invoices, delivery challans, packing lists and correspondence.
+2.  Goods must be delivered to the Ship To address on or before the delivery date stated above; time is the essence of this order.
+3.  All materials are subject to inspection and approval at the delivery site. Rejected goods will be returned at the supplier's risk and cost.
+4.  The tax invoice must conform to GST rules and clearly state the supplier's GSTIN, HSN/SAC codes and this PO number. An e-way bill must accompany the consignment where applicable.
+5.  Payment will be released as per the agreed payment terms from the date of receipt and acceptance of goods along with a correct tax invoice.
+6.  Prices stated in this Purchase Order are firm. No escalation will be accepted unless agreed in writing.
+7.  NIYAKRISH INDUSTRIES PRIVATE LIMITED reserves the right to cancel this order, in whole or in part, for delayed, short or non-conforming supply.
+8.  Any dispute arising out of this order is subject to the exclusive jurisdiction of the courts at Tumakuru, Karnataka.`;
+
+    function newPurchaseOrder(){
+      const no = peekNextPONo();
+      const today = _localDateStr();
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+      se('po-no',no); se('po-date',today); se('po-quote-ref',''); se('po-delivery-date','');
+      se('po-status','Draft'); se('po-vendor-name',''); se('po-vendor-contact','');
+      se('po-vendor-phone',''); se('po-vendor-gstin',''); se('po-vendor-addr','');
+      se('po-freight','0'); se('po-terms',_PO_DEFAULT_TERMS); se('po-notes','');
+      document.getElementById('po-rows-body').innerHTML='';
+      addPORow('','1','Nos','','18','');
+      calcPOTotals();
+      populatePOCompanyHeader();
+      updatePODisplayFields();
+    }
+
+    function serializePO(){
+      const v=id=>document.getElementById(id)?.value||'';
+      const rows=[...document.querySelectorAll('#po-rows-body tr')].map(row=>({
+        description:row.querySelector('.po-desc')?.value||'',
+        hsn:row.querySelector('.po-hsn')?.value||'',
+        qty:parseFloat(row.querySelector('.po-qty')?.value)||0,
+        unit:row.querySelector('.po-unit')?.value||'',
+        rate:parseFloat(row.querySelector('.po-rate')?.value)||0,
+        gst_pct:parseFloat(row.querySelector('.po-gst')?.value)||0,
+      }));
+      let sub=0,cgstT=0,sgstT=0;
+      rows.forEach(r=>{ const g=r.qty*r.rate; const hg=g*(r.gst_pct/2)/100; sub+=g; cgstT+=hg; sgstT+=hg; });
+      const freight=parseFloat(v('po-freight'))||0;
+      return {
+        poNo:v('po-no'), poDate:v('po-date'), quoteRef:v('po-quote-ref'),
+        deliveryDate:v('po-delivery-date'), status:v('po-status'),
+        vendor:{name:v('po-vendor-name'),contact:v('po-vendor-contact'),phone:v('po-vendor-phone'),gstin:v('po-vendor-gstin'),address:v('po-vendor-addr')},
+        rows, freight,
+        totals:{subTotal:sub,cgstTotal:cgstT,sgstTotal:sgstT,netAmount:sub+cgstT+sgstT+freight},
+        terms:v('po-terms'), notes:v('po-notes'), savedAt:new Date().toISOString()
+      };
+    }
+
+    function savePurchaseOrder(){
+      const po=serializePO();
+      if(!po.vendor.name){ showToast('Enter vendor name.','error'); return; }
+      if(!po.poNo){ showToast('PO number is missing.','error'); return; }
+      const all=getStoredPOs();
+      const idx=all.findIndex(x=>x.poNo===po.poNo);
+      const isNew=idx===-1;
+      if(isNew){ consumeNextPONo(); all.push(po); }
+      else all[idx]=po;
+      saveStoredPOs(all);
+      showToast((isNew?'✓ PO saved: ':'✓ PO updated: ')+po.poNo,'success');
+    }
+
+    function loadPurchaseOrder(po){
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('po-no',po.poNo); se('po-date',po.poDate); se('po-quote-ref',po.quoteRef||'');
+      se('po-delivery-date',po.deliveryDate||'');
+      se('po-status',po.status||'Draft'); se('po-vendor-name',po.vendor?.name||'');
+      se('po-vendor-contact',po.vendor?.contact||''); se('po-vendor-phone',po.vendor?.phone||'');
+      se('po-vendor-gstin',po.vendor?.gstin||''); se('po-vendor-addr',po.vendor?.address||'');
+      se('po-freight',po.freight||0); se('po-terms',po.terms||''); se('po-notes',po.notes||'');
+      document.getElementById('po-rows-body').innerHTML='';
+      (po.rows||[]).forEach(r=>addPORow(r.description,r.qty,r.unit,r.rate,r.gst_pct,r.hsn||''));
+      calcPOTotals(); populatePOCompanyHeader(); updatePODisplayFields();
+    }
+
+    function deletePurchaseOrder(poNo){
+      if(!confirm('Delete PO '+poNo+'?')) return;
+      const all=getStoredPOs().filter(p=>p.poNo!==poNo);
+      saveStoredPOs(all);
+      renderPOHistoryView();
+      showToast('Purchase Order deleted.','success');
+    }
+
+    function printPurchaseOrder(){
+      updatePODisplayFields();
+      const panel = document.getElementById('view-purchaseorder');
+      const sheet = document.getElementById('po-sheet');
+      if(panel) panel.classList.add('active-print');
+      if(sheet) sheet.classList.add('active-print');
+      window.print();
+      if(panel) panel.classList.remove('active-print');
+      if(sheet) sheet.classList.remove('active-print');
+    }
+
+    function renderPOHistoryView(){
+      const all=getStoredPOs().sort((a,b)=>b.poNo.localeCompare(a.poNo));
+      const search=(document.getElementById('poh-search')?.value||'').toLowerCase();
+      const from=document.getElementById('poh-from')?.value||'';
+      const to=document.getElementById('poh-to')?.value||'';
+      const status=document.getElementById('poh-status')?.value||'';
+      const filtered=all.filter(p=>{
+        if(search && !p.poNo.toLowerCase().includes(search) && !(p.vendor?.name||'').toLowerCase().includes(search)) return false;
+        if(from && p.poDate<from) return false;
+        if(to && p.poDate>to) return false;
+        if(status && p.status!==status) return false;
+        return true;
+      });
+      const statusColor=s=>({Draft:'#6b7280',Sent:'#4f46e5',Received:'#10b981','Partially Received':'#f59e0b',Cancelled:'#ef4444'}[s]||'#6b7280');
+      const tbody=document.getElementById('pohistory-body');
+      if(!tbody) return;
+      if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af;">No purchase orders found.</td></tr>'; return; }
+      tbody.innerHTML=filtered.map(p=>`
+        <tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+          <td style="padding:10px 8px; font-weight:600; color:#10b981;">${escapeHtml(p.poNo)}</td>
+          <td style="padding:10px 8px;">${p.poDate?new Date(p.poDate).toLocaleDateString('en-IN'):'-'}</td>
+          <td style="padding:10px 8px;">${escapeHtml(p.vendor?.name||'-')}</td>
+          <td style="padding:10px 8px; color:#10b981;">${p.deliveryDate?new Date(p.deliveryDate).toLocaleDateString('en-IN'):'-'}</td>
+          <td style="padding:10px 8px; text-align:right; font-weight:600;">₹${formatNum(p.totals?.netAmount||0)}</td>
+          <td style="padding:10px 8px; text-align:center;">
+            <span style="background:${statusColor(p.status)}22; color:${statusColor(p.status)}; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">${escapeHtml(p.status||'Draft')}</span>
+          </td>
+          <td style="padding:10px 8px; text-align:center; white-space:nowrap;">
+            <button class="btn secondary" style="font-size:11px;padding:4px 8px;" onclick="loadPurchaseOrder(getStoredPOs().find(x=>x.poNo==='${escapeHtml(p.poNo)}')); switchView('purchaseorder');">Edit</button>
+            <button class="btn secondary" style="font-size:11px;padding:4px 8px;" onclick="loadPurchaseOrder(getStoredPOs().find(x=>x.poNo==='${escapeHtml(p.poNo)}')); switchView('purchaseorder'); setTimeout(printPurchaseOrder,100);">Print</button>
+            <button class="btn" style="font-size:11px;padding:4px 8px;background:#ef4444;color:#fff;" onclick="deletePurchaseOrder('${escapeHtml(p.poNo)}')">Del</button>
+          </td>
+        </tr>`).join('');
+    }
+
     // ======= Init & Window Load =======
     async function init(){
-      // 1. Init Firebase first so we can pull credentials before showing login
-      initFirebase();
-
-      // 2. Sync credentials from cloud → all devices share the same password
-      if(db){
-        const creds = await cloudPull('app_credentials');
-        if(creds){
-          localStorage.setItem('app_credentials', creds);
-        } else {
-          // No credentials in cloud yet — wipe any stale local data so defaults work
-          localStorage.removeItem('app_credentials');
-        }
-      } else {
-        // Offline — wipe stale local credentials so defaults always work
-        localStorage.removeItem('app_credentials');
-      }
-
-      // 3. Check if already authenticated this session
-      checkAuth();
+      const authenticated = await checkAuth();
 
       const invoiceNoInput = document.getElementById('invoiceNo');
       invoiceNoInput.readOnly = true; // start in AUTO mode
@@ -5401,12 +6857,7 @@
       // Live clock — updates invoice date/time every 30 seconds unless user edited it manually
       function setInvoiceDateTime(){
         const el = document.getElementById('invoiceDate');
-        if(el && !el.dataset.manuallySet){
-          // Use local time formatted for datetime-local input
-          const now = new Date();
-          const pad2 = n => String(n).padStart(2,'0');
-          el.value = `${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-        }
+        if(el && !el.dataset.manuallySet) el.value = _localDateTimeStr();
       }
       setInvoiceDateTime();
       setInterval(setInvoiceDateTime, 30000);
@@ -5423,7 +6874,7 @@
       wireFields();
 
       const payDateInput = document.getElementById('pay-date');
-      if (payDateInput) payDateInput.value = now.toISOString().split('T')[0];
+      if (payDateInput) payDateInput.value = new Date().toISOString().split('T')[0];
 
       const label = document.getElementById('mobile-view-label');
       if (label) label.textContent = 'Dashboard';
@@ -5432,17 +6883,35 @@
         if (window.innerWidth > 1024) closeSidebar();
       });
 
-      // Pull latest cloud data (Firebase already inited above)
-      if(db){
+      // Pull latest server data only when the backend session is active.
+      if(authenticated){
         await loadFromCloud(false);
         applyCompanySettings(getCompanySettings());
         updateDashboardMetrics();
         renderDashboardCharts();
         loadAutofills();
+        refreshActiveView();
+        startRealtimeSync();
       }
 
-      // Set invoice number after possible cloud pull (seq may have updated)
+      // Set invoice number after possible server pull (seq may have updated)
       invoiceNoInput.value = peekNextInvoiceNo();
+    }
+
+    // Re-renders whichever view is currently active (used after server data pull)
+    function refreshActiveView(){
+      const activePanel = document.querySelector('.view-panel.active');
+      if(!activePanel) return;
+      const viewId = activePanel.id.replace('view-', '');
+      if(viewId === 'history') renderHistoryView();
+      else if(viewId === 'customers'){ renderCustomersTable(); resetCustomerForm(); }
+      else if(viewId === 'payments'){ loadCustomerSelects(); renderPaymentsHistoryTable(); }
+      else if(viewId === 'ledger') loadCustomerSelects();
+      else if(viewId === 'gphistory') renderGPHistoryView();
+      else if(viewId === 'dashboard'){ updateDashboardMetrics(); renderDashboardCharts(); }
+      else if(viewId === 'qhistory') renderQHistoryView();
+      else if(viewId === 'pohistory') renderPOHistoryView();
+      loadAutofills();
     }
 
     window.addEventListener('load', init);
