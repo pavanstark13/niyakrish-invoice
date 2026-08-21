@@ -413,10 +413,20 @@ async function migrateImport(req, res) {
   }
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const action = req.query.action;
+// Temporary read-only diagnostic for the ongoing pendrive PDF recovery — lists every
+// invoice_no currently in the DB so the missing numbers in a given range can be computed
+// locally. Remove once the recovery is finished.
+async function listInvoices(req, res) {
+  if (!checkSecret(req, res)) return;
+  const { rows } = await query('SELECT invoice_no FROM invoices ORDER BY invoice_no');
+  res.status(200).json({ ok: true, count: rows.length, invoiceNos: rows.map(r => r.invoice_no) });
+}
 
+export default async function handler(req, res) {
+  const action = req.query.action;
+  if (action === 'list-invoices') return listInvoices(req, res);
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (action === 'init-schema') return initSchema(req, res);
   if (action === 'bootstrap-auth') return bootstrapAuth(req, res);
   if (action === 'migrate-import') return migrateImport(req, res);
