@@ -2309,6 +2309,23 @@ table.list-table tbody td {
           <div style="font-size:12px; color:#6b7280;">Itemized product purchases for the selected customer, date-wise.</div>
           <button onclick="exportPurchaseDetailsCSV()" style="padding:5px 14px; font-size:12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600; height:30px;">📊 Export CSV</button>
         </div>
+        <div class="card no-print" style="padding:12px; margin-bottom:12px; display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;">
+          <div>
+            <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Product / Grade</label>
+            <select id="purchases-grade-filter" style="min-width:170px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:13px;" onchange="loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value)">
+              <option value="">All Products</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Search</label>
+            <input type="text" id="purchases-search" placeholder="Invoice # / product…" style="padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" oninput="loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value)">
+          </div>
+          <div>
+            <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Min Qty</label>
+            <input type="number" id="purchases-min-qty" placeholder="0" style="width:90px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" oninput="loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value)">
+          </div>
+          <button onclick="document.getElementById('purchases-grade-filter').value='';document.getElementById('purchases-search').value='';document.getElementById('purchases-min-qty').value='';loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value);" style="padding:5px 12px; font-size:11px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; height:30px;">✕ Clear</button>
+        </div>
         <div class="card" style="padding:16px;">
           <div id="purchases-summary" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:14px; font-size:13px;">
             <div>Total Purchases: <b id="purchases-summary-count">0</b></div>
@@ -4361,6 +4378,39 @@ table.list-table tbody td {
       return out;
     }
 
+    // Rebuilds the Product/Grade dropdown from whatever grades are actually present in the
+    // customer+date-filtered rows (before the grade/search/qty filters below are applied to
+    // them) — so the option list always reflects what's actually available to filter down to,
+    // and doesn't shrink to nothing once a grade is already selected. Preserves the current
+    // selection if it's still one of the available grades.
+    function populatePurchaseGradeFilter(rows) {
+      const select = document.getElementById('purchases-grade-filter');
+      if (!select) return;
+      const current = select.value;
+      const grades = Array.from(new Set(rows.map(r => r.grade))).sort((a, b) => a.localeCompare(b));
+      select.innerHTML = '<option value="">All Products</option>' +
+        grades.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+      if (grades.includes(current)) select.value = current;
+    }
+
+    // Applies the tab-local Product/Grade, Search, and Min Qty filters on top of the shared
+    // customer+date range filter already applied by getFilteredPurchaseRows().
+    function applyPurchaseDetailFilters(rows) {
+      const grade = document.getElementById('purchases-grade-filter')?.value || '';
+      const search = (document.getElementById('purchases-search')?.value || '').trim().toLowerCase();
+      const minQty = Number(document.getElementById('purchases-min-qty')?.value) || 0;
+
+      return rows.filter(r => {
+        if (grade && r.grade !== grade) return false;
+        if (minQty && r.qty < minQty) return false;
+        if (search) {
+          const hay = (r.grade + ' ' + r.invoiceNo).toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+    }
+
     function loadPurchaseDetailsForCustomer(custName) {
       const tbody = document.getElementById('purchases-tbody');
       const countEl = document.getElementById('purchases-summary-count');
@@ -4371,12 +4421,16 @@ table.list-table tbody td {
         tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>`;
         if (countEl) countEl.textContent = '0';
         if (amountEl) amountEl.textContent = '₹0.00';
+        populatePurchaseGradeFilter([]);
         return;
       }
 
-      const rows = getFilteredPurchaseRows(custName);
+      const allRows = getFilteredPurchaseRows(custName);
+      populatePurchaseGradeFilter(allRows);
+      const rows = applyPurchaseDetailFilters(allRows);
+
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">No purchases found for this customer in the selected range.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">No purchases match the current filters.</td></tr>`;
         if (countEl) countEl.textContent = '0';
         if (amountEl) amountEl.textContent = '₹0.00';
         return;
@@ -4409,7 +4463,7 @@ table.list-table tbody td {
     function exportPurchaseDetailsCSV() {
       const custName = document.getElementById('ledger-customer-select')?.value || '';
       if (!custName) { showToast('⚠️ Select a customer first', 'error'); return; }
-      const rows = getFilteredPurchaseRows(custName);
+      const rows = applyPurchaseDetailFilters(getFilteredPurchaseRows(custName));
       let csv = 'Date,Invoice No,Product/Grade,Qty,Rate,Amount\n';
       rows.forEach(r => {
         csv += `"${r.date}","${r.invoiceNo}","${String(r.grade).replace(/"/g, '""')}",${r.qty},${r.rate},${r.amount.toFixed(2)}\n`;
