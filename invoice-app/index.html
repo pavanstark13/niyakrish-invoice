@@ -5838,9 +5838,30 @@ table.list-table tbody td {
     // etc. in the @media print block are different from screen), which only reliably happens
     // during the 'beforeprint' event — measuring any earlier (e.g. in a setTimeout just before
     // calling window.print()) reads the screen-mode layout instead and over/under-shrinks.
+    // Chrome (confirmed on desktop, not just mobile) doesn't reliably honor
+    // `.no-print { display: none !important }` in the print stylesheet for native form
+    // controls like <select> — the CSS rule is correct and does apply to other elements, but
+    // a <select> can still render in the print output regardless. Rather than fight the CSS
+    // cascade further, force it via an inline style right on the elements themselves — that's
+    // not subject to the same browser quirk — and restore it afterward so the control is
+    // usable on screen again.
+    function forceHideNoPrintElements(sheetEl){
+      sheetEl.querySelectorAll('.no-print').forEach(el => {
+        el.dataset._prevDisplay = el.style.display;
+        el.style.setProperty('display', 'none', 'important');
+      });
+    }
+    function restoreNoPrintElements(sheetEl){
+      sheetEl.querySelectorAll('.no-print').forEach(el => {
+        el.style.display = el.dataset._prevDisplay || '';
+        delete el.dataset._prevDisplay;
+      });
+    }
+
     function fitSheetToOnePage(sheetEl){
       sheetEl.style.transform = '';
       sheetEl.style.transformOrigin = '';
+      forceHideNoPrintElements(sheetEl);
 
       const MM_TO_PX = 96 / 25.4;
       const pageContentHeightPx = (297 - 16) * MM_TO_PX; // A4 height minus 8mm top+bottom @page margin
@@ -5856,6 +5877,7 @@ table.list-table tbody td {
     function resetSheetFit(sheetEl){
       sheetEl.style.transform = '';
       sheetEl.style.transformOrigin = '';
+      restoreNoPrintElements(sheetEl);
     }
 
     // Runs a print job through 'beforeprint'/'afterprint' rather than a fixed setTimeout after
