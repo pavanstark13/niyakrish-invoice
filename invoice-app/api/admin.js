@@ -255,3 +255,4 @@ export default async function handler(req, res) {
   if (action === 'bootstrap-auth') return bootstrapAuth(req, res);
   res.status(404).json({ error: 'Not found' });
 }
+
