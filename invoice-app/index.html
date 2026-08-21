@@ -2334,8 +2334,10 @@ table.list-table tbody td {
         <div class="card" style="padding:16px;">
           <div id="purchases-summary" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:14px; font-size:13px;">
             <div>Total Purchases: <b id="purchases-summary-count">0</b></div>
-            <div>Total Amount: <b id="purchases-summary-amount">₹0.00</b></div>
+            <div>Amount (excl. GST): <b id="purchases-summary-amount">₹0.00</b></div>
+            <div>Total (incl. GST): <b id="purchases-summary-total">₹0.00</b></div>
           </div>
+          <div class="no-print" style="font-size:11px; color:#9ca3af; margin-bottom:10px;">"Total (incl. GST)" is what reconciles against Account Statement's Total Billed. It excludes TCS, which is charged on an invoice's whole subtotal rather than per product — for a customer whose invoices carry TCS, this total will be marginally less than their statement total by exactly that TCS.</div>
           <table style="width:100%; border-collapse:collapse; font-size:12px;">
             <thead>
               <tr style="border-top:2px solid #000; border-bottom:2px solid #000; background:#f1f5f9;">
@@ -2344,11 +2346,13 @@ table.list-table tbody td {
                 <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Product / Grade</th>
                 <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Qty</th>
                 <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Rate</th>
-                <th style="padding:6px; text-align:right;">Amount</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Amount</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">GST</th>
+                <th style="padding:6px; text-align:right;">Total</th>
               </tr>
             </thead>
             <tbody id="purchases-tbody">
-              <tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>
+              <tr><td colspan="8" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>
             </tbody>
           </table>
         </div>
@@ -2368,11 +2372,12 @@ table.list-table tbody td {
                 <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Product / Grade</th>
                 <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Total Qty</th>
                 <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Invoices</th>
-                <th style="padding:6px; text-align:right;">Total Amount</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Amount (excl. GST)</th>
+                <th style="padding:6px; text-align:right;">Total (incl. GST)</th>
               </tr>
             </thead>
             <tbody id="products-tbody">
-              <tr><td colspan="4" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>
+              <tr><td colspan="5" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>
             </tbody>
           </table>
         </div>
@@ -4356,6 +4361,20 @@ table.list-table tbody td {
     // (required) and the shared date-range filter — same gross formula the invoice builder
     // itself uses (recalcAll: qty * rate * (1 - disc_pct/100)), so amounts here match what was
     // actually billed.
+    //
+    // `amount` is the pre-GST product value (what recalcAll calls "gross"); `gstAmount` is
+    // that row's own CGST+SGST computed from its own rates, and `totalAmount` is the two
+    // added together — this is what actually reconciles against the Account Statement tab's
+    // "Total Billed", which sums each invoice's tax-inclusive netAmount. Without this, a
+    // customer's Purchase Details total looks ~18% "short" of their statement total for no
+    // apparent reason — it's real GST, not a discrepancy, but it needs to be shown for the two
+    // tabs to make sense side by side.
+    //
+    // One residual gap this still doesn't close: TCS is charged on an invoice's whole subtotal
+    // (recalcAll: tcsAmt = subtotal * tcsPct/100), not per row, so it has no sensible per-
+    // product allocation and isn't included in totalAmount here. For a customer whose invoices
+    // carry TCS, summed totalAmount will be marginally less than that customer's Account
+    // Statement total by exactly the TCS charged — expected, not a bug.
     function getFilteredPurchaseRows(custName) {
       const from = document.getElementById('ledger-date-from')?.value || '';
       const to   = document.getElementById('ledger-date-to')?.value   || '';
@@ -4372,10 +4391,14 @@ table.list-table tbody td {
           const qty = Number(r.qty) || 0;
           const rate = Number(r.rate) || 0;
           const disc = Number(r.disc_pct) || 0;
+          const cgstPct = Number(r.cgst_pct) || 0;
+          const sgstPct = Number(r.sgst_pct) || 0;
+          const amount = qty * rate * (1 - disc / 100);
+          const gstAmount = amount * (cgstPct + sgstPct) / 100;
           out.push({
             date, invoiceNo: inv.invoiceNo, customerName: inv.customer?.name || '',
             grade: r.grade || '(unnamed)', qty, rate,
-            amount: qty * rate * (1 - disc / 100),
+            amount, gstAmount, totalAmount: amount + gstAmount,
           });
         });
       });
@@ -4486,12 +4509,14 @@ table.list-table tbody td {
       const tbody = document.getElementById('purchases-tbody');
       const countEl = document.getElementById('purchases-summary-count');
       const amountEl = document.getElementById('purchases-summary-amount');
+      const totalEl = document.getElementById('purchases-summary-total');
       if (!tbody) return;
 
       if (!custName) {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>`;
         if (countEl) countEl.textContent = '0';
         if (amountEl) amountEl.textContent = '₹0.00';
+        if (totalEl) totalEl.textContent = '₹0.00';
         populatePurchaseGradeFilter([]);
         return;
       }
@@ -4501,15 +4526,18 @@ table.list-table tbody td {
       const rows = applyPurchaseDetailFilters(allRows);
 
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">No purchases match the current filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="padding:20px; text-align:center; color:#555;">No purchases match the current filters.</td></tr>`;
         if (countEl) countEl.textContent = '0';
         if (amountEl) amountEl.textContent = '₹0.00';
+        if (totalEl) totalEl.textContent = '₹0.00';
         return;
       }
 
-      let totalAmount = 0;
+      let sumAmount = 0, sumGst = 0, sumTotal = 0;
       tbody.innerHTML = rows.map(r => {
-        totalAmount += r.amount;
+        sumAmount += r.amount;
+        sumGst += r.gstAmount;
+        sumTotal += r.totalAmount;
         return `
           <tr style="border-bottom:1px solid #ddd;">
             <td style="padding:6px; border-right:1px solid #ddd;">${escapeHtml(r.date)}</td>
@@ -4517,33 +4545,55 @@ table.list-table tbody td {
             <td style="padding:6px; border-right:1px solid #ddd;">${escapeHtml(r.grade)}</td>
             <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${formatNum(r.qty)}</td>
             <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">₹${formatNum(r.rate)}</td>
-            <td style="padding:6px; text-align:right; font-weight:600;">₹${formatNum(r.amount)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">₹${formatNum(r.amount)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd; color:#6b7280;">₹${formatNum(r.gstAmount)}</td>
+            <td style="padding:6px; text-align:right; font-weight:600;">₹${formatNum(r.totalAmount)}</td>
           </tr>
         `;
       }).join('') + `
         <tr style="font-weight:800; border-top:2px solid #000; background:#f8fafc;">
           <td colspan="5" style="padding:8px; text-align:right;">Total:</td>
-          <td style="padding:8px; text-align:right;">₹${formatNum(totalAmount)}</td>
+          <td style="padding:8px; text-align:right;">₹${formatNum(sumAmount)}</td>
+          <td style="padding:8px; text-align:right; color:#6b7280;">₹${formatNum(sumGst)}</td>
+          <td style="padding:8px; text-align:right;">₹${formatNum(sumTotal)}</td>
         </tr>
       `;
 
       if (countEl) countEl.textContent = String(rows.length);
-      if (amountEl) amountEl.textContent = '₹' + formatNum(totalAmount);
+      if (amountEl) amountEl.textContent = '₹' + formatNum(sumAmount);
+      if (totalEl) totalEl.textContent = '₹' + formatNum(sumTotal);
     }
 
     function exportPurchaseDetailsCSV() {
       const custName = document.getElementById('ledger-customer-select')?.value || '';
       if (!custName) { showToast('⚠️ Select a customer first', 'error'); return; }
       const rows = applyPurchaseDetailFilters(getFilteredPurchaseRows(custName));
-      let csv = 'Date,Invoice No,Product/Grade,Qty,Rate,Amount\n';
+      let csv = 'Date,Invoice No,Product/Grade,Qty,Rate,Amount (excl GST),GST,Total (incl GST)\n';
       rows.forEach(r => {
-        csv += `"${r.date}","${r.invoiceNo}","${String(r.grade).replace(/"/g, '""')}",${r.qty},${r.rate},${r.amount.toFixed(2)}\n`;
+        csv += `"${r.date}","${r.invoiceNo}","${String(r.grade).replace(/"/g, '""')}",${r.qty},${r.rate},${r.amount.toFixed(2)},${r.gstAmount.toFixed(2)},${r.totalAmount.toFixed(2)}\n`;
       });
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = `Purchase_Details_${custName}.csv`; a.click();
       URL.revokeObjectURL(url);
+    }
+
+    // Groups flattened purchase rows by grade, summing qty and both the pre-GST amount and
+    // the GST-inclusive total — shared by the on-screen render and the CSV export so they
+    // can't drift apart.
+    function groupPurchaseRowsByGrade(rows) {
+      const byGrade = new Map();
+      rows.forEach(r => {
+        const key = String(r.grade).trim() || '(unnamed)';
+        if (!byGrade.has(key)) byGrade.set(key, { grade: key, qty: 0, amount: 0, totalAmount: 0, invoices: new Set() });
+        const g = byGrade.get(key);
+        g.qty += r.qty;
+        g.amount += r.amount;
+        g.totalAmount += r.totalAmount;
+        g.invoices.add(r.invoiceNo);
+      });
+      return Array.from(byGrade.values()).sort((a, b) => b.qty - a.qty);
     }
 
     // Groups the same filtered rows by grade — custName is optional here (empty = all
@@ -4554,31 +4604,23 @@ table.list-table tbody td {
 
       const rows = getFilteredPurchaseRows(custName);
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>`;
         return;
       }
 
-      const byGrade = new Map();
-      rows.forEach(r => {
-        const key = String(r.grade).trim() || '(unnamed)';
-        if (!byGrade.has(key)) byGrade.set(key, { grade: key, qty: 0, amount: 0, invoices: new Set() });
-        const g = byGrade.get(key);
-        g.qty += r.qty;
-        g.amount += r.amount;
-        g.invoices.add(r.invoiceNo);
-      });
-
-      const groups = Array.from(byGrade.values()).sort((a, b) => b.qty - a.qty);
-      let totalQty = 0, totalAmount = 0;
+      const groups = groupPurchaseRowsByGrade(rows);
+      let totalQty = 0, totalAmount = 0, totalWithGst = 0;
       tbody.innerHTML = groups.map(g => {
         totalQty += g.qty;
         totalAmount += g.amount;
+        totalWithGst += g.totalAmount;
         return `
           <tr style="border-bottom:1px solid #ddd;">
             <td style="padding:6px; border-right:1px solid #ddd; font-weight:600;">${escapeHtml(g.grade)}</td>
             <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${formatNum(g.qty)}</td>
             <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${g.invoices.size}</td>
-            <td style="padding:6px; text-align:right;">₹${formatNum(g.amount)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">₹${formatNum(g.amount)}</td>
+            <td style="padding:6px; text-align:right; font-weight:600;">₹${formatNum(g.totalAmount)}</td>
           </tr>
         `;
       }).join('') + `
@@ -4587,6 +4629,7 @@ table.list-table tbody td {
           <td style="padding:8px; text-align:right;">${formatNum(totalQty)}</td>
           <td></td>
           <td style="padding:8px; text-align:right;">₹${formatNum(totalAmount)}</td>
+          <td style="padding:8px; text-align:right;">₹${formatNum(totalWithGst)}</td>
         </tr>
       `;
     }
@@ -4594,18 +4637,10 @@ table.list-table tbody td {
     function exportProductSummaryCSV() {
       const custName = document.getElementById('ledger-customer-select')?.value || '';
       const rows = getFilteredPurchaseRows(custName);
-      const byGrade = new Map();
-      rows.forEach(r => {
-        const key = String(r.grade).trim() || '(unnamed)';
-        if (!byGrade.has(key)) byGrade.set(key, { grade: key, qty: 0, amount: 0, invoices: new Set() });
-        const g = byGrade.get(key);
-        g.qty += r.qty;
-        g.amount += r.amount;
-        g.invoices.add(r.invoiceNo);
-      });
-      let csv = 'Product/Grade,Total Qty,Invoices,Total Amount\n';
-      Array.from(byGrade.values()).sort((a, b) => b.qty - a.qty).forEach(g => {
-        csv += `"${String(g.grade).replace(/"/g, '""')}",${g.qty},${g.invoices.size},${g.amount.toFixed(2)}\n`;
+      const groups = groupPurchaseRowsByGrade(rows);
+      let csv = 'Product/Grade,Total Qty,Invoices,Amount (excl GST),Total (incl GST)\n';
+      groups.forEach(g => {
+        csv += `"${String(g.grade).replace(/"/g, '""')}",${g.qty},${g.invoices.size},${g.amount.toFixed(2)},${g.totalAmount.toFixed(2)}\n`;
       });
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
