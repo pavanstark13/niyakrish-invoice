@@ -3575,6 +3575,40 @@ table.list-table tbody td {
         });
     }
 
+    // ======= ATOMIC CROSS-DEVICE SEQUENCE NUMBERS =======
+    // Plain read-then-write counters (localStorage.getItem → +1 → setItem) race across
+    // devices: two devices creating an invoice/quote/PO/gate pass around the same time can
+    // both read the same "current" value and both save "current+1", producing duplicate
+    // numbers. When online, this runs a Firestore transaction so the read-increment-write is
+    // atomic across every device. Offline, it falls back to a local-only increment — the
+    // only remaining window for a duplicate is two devices creating a record while *both*
+    // are offline at the same time, which a client-only app can't fully close.
+    async function consumeAtomicSeq(localKey, floor){
+      const localVal = parseInt(localStorage.getItem(localKey) || '0', 10);
+      const localFallback = () => {
+        const next = Math.max(localVal, floor || 0) + 1;
+        localStorage.setItem(localKey, String(next));
+        cloudPush(localKey, String(next));
+        return next;
+      };
+      if(!db) return localFallback();
+      try{
+        const ref = db.collection('niyakrish_data').doc(localKey);
+        const next = await db.runTransaction(async (t) => {
+          const snap = await t.get(ref);
+          const cloudVal = snap.exists ? (parseInt(snap.data().value, 10) || 0) : 0;
+          const n = Math.max(localVal, cloudVal, floor || 0) + 1;
+          t.set(ref, { value: String(n), ts: Date.now() });
+          return n;
+        });
+        localStorage.setItem(localKey, String(next));
+        return next;
+      }catch(e){
+        console.warn('Atomic sequence transaction failed for '+localKey+', falling back to local-only increment:', e);
+        return localFallback();
+      }
+    }
+
     async function cloudPull(key){
       if(!db) return null;
       try{
@@ -3955,8 +3989,12 @@ table.list-table tbody td {
       // Build target URL for appyflow.in (free Indian GST API)
       const target = `https://appyflow.in/api/verifyGST?gstNo=${encodeURIComponent(gstin)}&key=allkey`;
 
-      // Try directly first (works if they add CORS headers), then via two CORS proxies
+      // Preferred: same-origin Vercel serverless function (api/gstin.js) — the browser
+      // never talks to appyflow.in or a third-party CORS proxy directly. The direct call and
+      // public-proxy fallbacks only matter when running the file outside Vercel (e.g. a
+      // plain local `python -m http.server`, where /api/gstin doesn't exist).
       const attempts = [
+        { url: `/api/gstin?gstin=${encodeURIComponent(gstin)}`, raw: true },
         { url: target, raw: true },
         { url: `https://corsproxy.io/?url=${encodeURIComponent(target)}`, raw: true },
         { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`, raw: true }
@@ -4367,15 +4405,18 @@ table.list-table tbody td {
         return;
       }
 
+      // appliedTo records exactly which invoices this payment paid down, and how much of
+      // each — so deletePayment() can reverse the *actual* allocation instead of
+      // re-deriving one, which can drift out of sync if other payments/invoices changed
+      // for this customer in between (see deletePayment).
+      const appliedTo = [];
+
       const newPay = {
         id: 'pay_' + Math.random().toString(36).substr(2, 9),
         customerName, linkedInvoice, date, amount, paymentMode, refNo, notes,
+        appliedTo,
         createdAt: new Date().toISOString()
       };
-
-      const allPays = getStoredPayments();
-      allPays.push(newPay);
-      saveStoredPayments(allPays);
 
       // Perform accounting ledger invoice deductions
       let allInvoices = getStoredInvoices();
@@ -4386,10 +4427,11 @@ table.list-table tbody td {
           const inv = allInvoices[idx];
           inv.paidAmount = (inv.paidAmount || 0) + amount;
           inv.status = inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid';
+          appliedTo.push({ invoiceNo: inv.invoiceNo, amount });
         }
       } else {
         // General Payment: split dynamically across client's oldest unpaid invoices first
-        const clientInvoices = allInvoices.filter(i => 
+        const clientInvoices = allInvoices.filter(i =>
           _nameMatch(i.customer?.name, customerName)
         ).sort((a,b) => (a.invoiceDate || '').localeCompare(b.invoiceDate || ''));
 
@@ -4402,10 +4444,14 @@ table.list-table tbody td {
             inv.paidAmount = (inv.paidAmount || 0) + payAlloc;
             inv.status = inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid';
             remPayment -= payAlloc;
+            appliedTo.push({ invoiceNo: inv.invoiceNo, amount: payAlloc });
           }
         });
       }
 
+      const allPays = getStoredPayments();
+      allPays.push(newPay);
+      saveStoredPayments(allPays);
       saveStoredInvoices(allInvoices);
       
       document.getElementById('pay-amount').value = '';
@@ -4425,7 +4471,18 @@ table.list-table tbody td {
 
       // Reverse invoice allocations
       let allInvoices = getStoredInvoices();
-      if(p.linkedInvoice) {
+      if(Array.isArray(p.appliedTo) && p.appliedTo.length) {
+        // Reverse the exact allocation this payment made (recorded at save time) —
+        // correct regardless of what other payments/invoices happened since.
+        p.appliedTo.forEach(a => {
+          const idx = allInvoices.findIndex(i => i.invoiceNo === a.invoiceNo);
+          if(idx >= 0) {
+            const inv = allInvoices[idx];
+            inv.paidAmount = Math.max(0, (inv.paidAmount || 0) - a.amount);
+            inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
+          }
+        });
+      } else if(p.linkedInvoice) {
         const idx = allInvoices.findIndex(i => i.invoiceNo === p.linkedInvoice);
         if(idx >= 0) {
           const inv = allInvoices[idx];
@@ -4433,8 +4490,9 @@ table.list-table tbody td {
           inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
         }
       } else {
-        // Reverse General Payment allocation (subtract from newest paid client invoices down)
-        const clientInvoices = allInvoices.filter(i => 
+        // Legacy payments recorded before `appliedTo` existed have no exact record of which
+        // invoices they paid, so fall back to the old best-effort heuristic (newest-first).
+        const clientInvoices = allInvoices.filter(i =>
           _nameMatch(i.customer?.name, p.customerName)
         ).sort((a,b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || '')); // Newest first
 
@@ -4776,13 +4834,16 @@ table.list-table tbody td {
           }
 
           if(confirm('Warning: This will merge/overwrite existing storage records. Proceed?')) {
-            localStorage.setItem('invoices', JSON.stringify(data.invoices));
-            localStorage.setItem('invoice_customers', JSON.stringify(data.customers));
-            localStorage.setItem('invoice_payments', JSON.stringify(data.payments));
-            if(data.gatepasses) localStorage.setItem('invoice_gatepasses', JSON.stringify(data.gatepasses));
-            if(data.invoice_seq) localStorage.setItem('invoice_seq', data.invoice_seq);
-            if(data.gp_seq) localStorage.setItem('gp_seq', data.gp_seq);
-            
+            // Go through saveStored*()/cloudPush so the in-memory _lsCache is invalidated and
+            // the restore is pushed to Firestore — writing localStorage directly here left the
+            // cache stale, so the very next save silently overwrote the restore with pre-restore data.
+            saveStoredInvoices(data.invoices);
+            saveStoredCustomers(data.customers);
+            saveStoredPayments(data.payments);
+            if(data.gatepasses) saveStoredGatePasses(data.gatepasses);
+            if(data.invoice_seq){ localStorage.setItem('invoice_seq', data.invoice_seq); cloudPush('invoice_seq', data.invoice_seq); }
+            if(data.gp_seq){ localStorage.setItem('gp_seq', data.gp_seq); cloudPush('gp_seq', data.gp_seq); }
+
             showToast('✓ Backup database restored successfully!', 'success');
             fileInput.value = '';
             
@@ -5167,12 +5228,11 @@ table.list-table tbody td {
       }
       return n;
     }
-    function setSeq(v){ localStorage.setItem('invoice_seq', String(v)); cloudPush('invoice_seq', String(v)); updateDashboardMetrics(); }
     function pad(n){ return String(n).padStart(3,'0'); }
     function peekNextInvoiceNo(){ return pad(getSeq() + 1); }
-    function consumeNextInvoiceNo(){
-      const next = getSeq() + 1;
-      setSeq(next);
+    async function consumeNextInvoiceNo(){
+      const next = await consumeAtomicSeq('invoice_seq', MIN_SEQ);
+      updateDashboardMetrics();
       return pad(next);
     }
 
@@ -5460,7 +5520,7 @@ table.list-table tbody td {
       recalcAll();
     }
 
-    function saveInvoiceToStorage(){
+    async function saveInvoiceToStorage(){
       recalcAll();
       const inv = serializeInvoice();
       let all = getStoredInvoices();
@@ -5472,8 +5532,13 @@ table.list-table tbody td {
         inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
         all[idx] = inv;
       } else {
-        // Brand-new invoice — consume the sequence number NOW (first save only)
-        consumeNextInvoiceNo();
+        // Brand-new invoice — atomically consume the sequence number NOW (first save only),
+        // and use *that* as the invoice's real number instead of whatever was merely
+        // previewed in the read-only field: two devices can preview the same number before
+        // either one saves, so the previewed value alone isn't safe to persist as-is.
+        inv.invoiceNo = await consumeNextInvoiceNo();
+        const invNoField = document.getElementById('invoiceNo');
+        if (invNoField) invNoField.value = inv.invoiceNo;
         all.push(inv);
       }
 
@@ -5487,8 +5552,8 @@ table.list-table tbody td {
     }
 
     // ======= Modal: View Invoices & Custom Filters =======
-    function viewInvoices(){
-      saveInvoiceToStorage();
+    async function viewInvoices(){
+      await saveInvoiceToStorage();
       populateInvoicesList();
       const invoicesModal = document.getElementById('invoicesModal');
       if (invoicesModal) invoicesModal.classList.remove('hidden');
@@ -5587,8 +5652,8 @@ table.list-table tbody td {
     }
 
     // ======= Actions =======
-    function printInvoice(){
-      saveInvoiceToStorage();
+    async function printInvoice(){
+      await saveInvoiceToStorage();
       const panel = document.getElementById('view-invoice');
       const sheet = document.getElementById('sheet');
       
@@ -5658,8 +5723,8 @@ table.list-table tbody td {
     }
 
     // ---------- Print Helpers ----------
-    function trySave(){
-      try { saveInvoiceToStorage(); } 
+    async function trySave(){
+      try { await saveInvoiceToStorage(); }
       catch(e){ console.warn('Skipping save:', e); }
     }
 
@@ -5677,8 +5742,8 @@ table.list-table tbody td {
       return badge;
     }
 
-    function printCopy(type){
-      trySave();
+    async function printCopy(type){
+      await trySave();
       const badge = ensureCopyLabel(type);
       const panel = document.getElementById('view-invoice');
       const sheet = document.getElementById('sheet');
@@ -5729,8 +5794,8 @@ table.list-table tbody td {
       return targetDoc.importNode(clone, true);
     }
 
-    function printAllCopies(){
-      trySave();
+    async function printAllCopies(){
+      await trySave();
 
       const copies = ['Original','Duplicate','Transport'];
       const frame = document.getElementById('printFrame');
@@ -5773,7 +5838,7 @@ table.list-table tbody td {
       });
     }
 
-    function duplicateCurrentInvoice(){
+    async function duplicateCurrentInvoice(){
       recalcAll();
       const current = serializeInvoice();
       if(!current){
@@ -5781,7 +5846,7 @@ table.list-table tbody td {
         return;
       }
 
-      const nextNo = consumeNextInvoiceNo();
+      const nextNo = await consumeNextInvoiceNo();
 
       const dupInvoice = Object.assign({}, current);
       dupInvoice.invoiceNo = nextNo;
@@ -5812,8 +5877,8 @@ table.list-table tbody td {
       html2pdf().set(opt).from(element).save();
     }
 
-    function saveSeparateCopiesPDF() {
-      trySave();
+    async function saveSeparateCopiesPDF() {
+      await trySave();
       const invoiceNo = document.getElementById('invoiceNo')?.value || "invoice";
       const copies = ["Original", "Duplicate", "Transport"];
 
@@ -6043,20 +6108,21 @@ table.list-table tbody td {
       curType='default'; buildRows(); setDefaults(); calcTotal();
     }
 
-    function setDefaults() {
+    async function setDefaults() {
       const now = new Date();
       const gpdateInput = document.getElementById('gpdate');
       if (gpdateInput) {
         gpdateInput.value = _localDateTimeStr(now);
       }
-      
+
       // Only generate a new GP number if the field is empty
       const gpnoInput = document.getElementById('gpno');
       if (gpnoInput && !gpnoInput.value.trim()) {
         const yr = String(now.getFullYear()).slice(2) + String(now.getMonth()+1).padStart(2,'0');
-        let gpseq = parseInt(localStorage.getItem('gp_seq') || '0', 10) + 1;
-        localStorage.setItem('gp_seq', gpseq);
-        gpnoInput.value = `NI-GP-${yr}-${String(gpseq).padStart(3,'0')}`;
+        const gpseq = await consumeAtomicSeq('gp_seq', 0);
+        // Guard against the user already having typed/loaded a GP number while the
+        // transaction was in flight.
+        if (!gpnoInput.value.trim()) gpnoInput.value = `NI-GP-${yr}-${String(gpseq).padStart(3,'0')}`;
       }
       buildCopy();
     }
@@ -6167,8 +6233,8 @@ table.list-table tbody td {
     }
 
     // ======= MARK INVOICE AS PAID =======
-    function markInvoiceAsPaid() {
-      const invNo = document.getElementById('invoiceNo').value;
+    async function markInvoiceAsPaid() {
+      let invNo = document.getElementById('invoiceNo').value;
       if (!invNo) { showToast('⚠️ No invoice loaded', 'error'); return; }
       recalcAll();
       const netAmt = toNumber(document.getElementById('netAmount').textContent);
@@ -6176,9 +6242,15 @@ table.list-table tbody td {
       if (!confirm(`Mark Invoice #${invNo} as fully PAID (₹${formatNum(netAmt)})?`)) return;
 
       let all = getStoredInvoices();
-      const idx = all.findIndex(x => x.invoiceNo === invNo);
-      if (idx < 0) { saveInvoiceToStorage(); all = getStoredInvoices(); }
-      const finalIdx = all.findIndex(x => x.invoiceNo === invNo);
+      let finalIdx = all.findIndex(x => x.invoiceNo === invNo);
+      if (finalIdx < 0) {
+        // Not saved yet — saveInvoiceToStorage() may assign a fresh atomic invoice number
+        // that differs from the one merely previewed in the field, so re-resolve invNo
+        // from its return value rather than trusting the value captured above.
+        invNo = await saveInvoiceToStorage();
+        all = getStoredInvoices();
+        finalIdx = all.findIndex(x => x.invoiceNo === invNo);
+      }
       if (finalIdx < 0) { showToast('⚠️ Save invoice first', 'error'); return; }
 
       all[finalIdx].paidAmount = all[finalIdx].totals?.netAmount || netAmt;
@@ -6194,6 +6266,7 @@ table.list-table tbody td {
         paymentMode: 'Cash',
         refNo: '',
         notes: 'Marked as paid from invoice builder',
+        appliedTo: [{ invoiceNo: invNo, amount: all[finalIdx].paidAmount }],
         createdAt: new Date().toISOString()
       };
       const allPays = getStoredPayments();
@@ -6404,13 +6477,13 @@ table.list-table tbody td {
     }
 
     // ======= KEYBOARD SHORTCUTS =======
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', async function(e) {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
       if (!(e.ctrlKey || e.metaKey)) return;
       const activeId = document.querySelector('.view-panel.active')?.id;
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
-        if (activeId === 'view-invoice') { saveInvoiceToStorage(); showToast('✓ Invoice saved (Ctrl+S)', 'success'); }
+        if (activeId === 'view-invoice') { await saveInvoiceToStorage(); showToast('✓ Invoice saved (Ctrl+S)', 'success'); }
       } else if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
         if (activeId === 'view-invoice') printInvoice();
@@ -6427,8 +6500,7 @@ table.list-table tbody td {
     function saveStoredQuotations(arr){ cloudPush('quotations', _lsWrite('quotations', arr)); }
 
     function getQuoteSeq(){ return parseInt(localStorage.getItem('quote_seq')||'0',10); }
-    function setQuoteSeq(v){ localStorage.setItem('quote_seq', String(v)); cloudPush('quote_seq', String(v)); }
-    function consumeNextQuoteNo(){ const n = getQuoteSeq()+1; setQuoteSeq(n); return 'QT-'+String(n).padStart(3,'0'); }
+    async function consumeNextQuoteNo(){ const n = await consumeAtomicSeq('quote_seq', 0); return 'QT-'+String(n).padStart(3,'0'); }
     function peekNextQuoteNo(){ return 'QT-'+String(getQuoteSeq()+1).padStart(3,'0'); }
 
     function populateQCustList(){
@@ -6559,15 +6631,21 @@ table.list-table tbody td {
       };
     }
 
-    function saveQuotation(){
+    async function saveQuotation(){
       const q = serializeQuotation();
       if(!q.customer.name){ showToast('Enter customer name.','error'); return; }
       if(!q.quoteNo){ showToast('Quote number is missing.','error'); return; }
       const all = getStoredQuotations();
       const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
       const isNew = idx===-1;
-      if(isNew){ consumeNextQuoteNo(); all.push(q); }
-      else all[idx]=q;
+      if(isNew){
+        // Atomically consume the number and use it as the real quoteNo — the value
+        // previewed in the #q-no field isn't safe to persist as-is (see saveInvoiceToStorage).
+        q.quoteNo = await consumeNextQuoteNo();
+        const qNoField = document.getElementById('q-no');
+        if (qNoField) qNoField.value = q.quoteNo;
+        all.push(q);
+      } else all[idx]=q;
       saveStoredQuotations(all);
       showToast((isNew?'✓ Quotation saved: ':'✓ Quotation updated: ')+q.quoteNo,'success');
     }
@@ -6667,8 +6745,7 @@ table.list-table tbody td {
     function saveStoredPOs(arr){ cloudPush('purchase_orders', _lsWrite('purchase_orders', arr)); }
 
     function getPOSeq(){ return parseInt(localStorage.getItem('po_seq')||'0',10); }
-    function setPOSeq(v){ localStorage.setItem('po_seq', String(v)); cloudPush('po_seq', String(v)); }
-    function consumeNextPONo(){ const n=getPOSeq()+1; setPOSeq(n); return 'PO-'+String(n).padStart(3,'0'); }
+    async function consumeNextPONo(){ const n = await consumeAtomicSeq('po_seq', 0); return 'PO-'+String(n).padStart(3,'0'); }
     function peekNextPONo(){ return 'PO-'+String(getPOSeq()+1).padStart(3,'0'); }
 
     function populatePOCompanyHeader(){
@@ -6808,15 +6885,21 @@ table.list-table tbody td {
       };
     }
 
-    function savePurchaseOrder(){
+    async function savePurchaseOrder(){
       const po=serializePO();
       if(!po.vendor.name){ showToast('Enter vendor name.','error'); return; }
       if(!po.poNo){ showToast('PO number is missing.','error'); return; }
       const all=getStoredPOs();
       const idx=all.findIndex(x=>x.poNo===po.poNo);
       const isNew=idx===-1;
-      if(isNew){ consumeNextPONo(); all.push(po); }
-      else all[idx]=po;
+      if(isNew){
+        // Atomically consume the number and use it as the real poNo — the value
+        // previewed in the #po-no field isn't safe to persist as-is (see saveInvoiceToStorage).
+        po.poNo = await consumeNextPONo();
+        const poNoField = document.getElementById('po-no');
+        if (poNoField) poNoField.value = po.poNo;
+        all.push(po);
+      } else all[idx]=po;
       saveStoredPOs(all);
       showToast((isNew?'✓ PO saved: ':'✓ PO updated: ')+po.poNo,'success');
     }
