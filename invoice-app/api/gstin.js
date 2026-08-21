@@ -6,7 +6,10 @@
 //
 // Optionally set GST_LOOKUP_API_KEY in the Vercel project's environment variables to use
 // a paid/private appyflow.in key instead of their public free-tier "allkey".
+import { requireAuth } from './_lib/auth.js';
+
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return;
   const gstin = (req.query.gstin || '').toString().trim().toUpperCase();
   if (!/^[0-9A-Z]{15}$/.test(gstin)) {
     res.status(400).json({ error: 'Invalid GSTIN format' });
