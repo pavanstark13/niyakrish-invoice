@@ -38,19 +38,33 @@ async function createPayment(req, res) {
     );
 
     const allocations = [];
+    let remaining = Number(amount);
+
+    // A payment linked to a specific invoice is capped at what's actually still due on it —
+    // previously this added the full payment amount unconditionally, so overpaying (or a typo
+    // with an extra zero) could push paid_amount past net_amount with no reconciliation. Any
+    // leftover now falls through to the same customer's other unpaid invoices below, same as
+    // an unlinked payment, instead of being silently lost.
     if (linkedInvoice) {
       const { rows: [inv] } = await client.query('SELECT * FROM invoices WHERE invoice_no = $1', [linkedInvoice]);
       if (inv) {
-        const paid = Number(inv.paid_amount) + Number(amount);
-        const status = paid >= Number(inv.net_amount) ? 'Paid' : 'Partially Paid';
-        await client.query('UPDATE invoices SET paid_amount = $1, status = $2, updated_at = now() WHERE id = $3', [paid, status, inv.id]);
-        allocations.push({ invoiceNo: inv.invoice_no, amount: Number(amount) });
+        const due = Math.max(0, Number(inv.net_amount) - Number(inv.paid_amount));
+        const alloc = Math.min(remaining, due);
+        if (alloc > 0) {
+          const paid = Number(inv.paid_amount) + alloc;
+          const status = paid >= Number(inv.net_amount) ? 'Paid' : 'Partially Paid';
+          await client.query('UPDATE invoices SET paid_amount = $1, status = $2, updated_at = now() WHERE id = $3', [paid, status, inv.id]);
+          allocations.push({ invoiceNo: inv.invoice_no, amount: alloc });
+          remaining -= alloc;
+        }
       }
-    } else {
+    }
+
+    if (remaining > 0) {
       const { rows: clientInvoices } = await client.query(
-        `SELECT * FROM invoices WHERE lower(customer_name) = lower($1) ORDER BY invoice_date ASC`, [customerName]
+        `SELECT * FROM invoices WHERE lower(customer_name) = lower($1) AND invoice_no != $2 ORDER BY invoice_date ASC`,
+        [customerName, linkedInvoice || '']
       );
-      let remaining = Number(amount);
       for (const inv of clientInvoices) {
         if (remaining <= 0) break;
         const due = Number(inv.net_amount) - Number(inv.paid_amount);
