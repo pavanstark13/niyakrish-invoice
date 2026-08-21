@@ -6,5 +6,10 @@
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/admin.js": {
+      "maxDuration": 60
+    }
+  }
 }

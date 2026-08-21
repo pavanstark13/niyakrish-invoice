@@ -11,7 +11,8 @@
 //     -H "Authorization: Bearer <SESSION_SECRET>" -H "Content-Type: application/json" \
 //     -d '{"username":"admin","password":"choose-a-real-password"}'
 import bcrypt from 'bcryptjs';
-import { query } from './_lib/db.js';
+import { query, withTransaction } from './_lib/db.js';
+import { batchInsert } from './_lib/batch.js';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_credentials (
@@ -259,12 +260,166 @@ async function bootstrapAuth(req, res) {
   res.status(201).json({ ok: true });
 }
 
+// One-time import of a local-backup JSON export (the shape produced by the old app's
+// "Export Master Backup" in Data Center: { invoices, customers, payments, gatepasses,
+// invoice_seq, gp_seq }) directly into Postgres — preserving the original invoice/gate-pass
+// numbers exactly, unlike the normal create endpoints which always assign a fresh atomic
+// number. This is NOT what restoreFullBackup() in the app itself does (that goes through the
+// normal API and gets new numbers) — this is specifically for the one-time migration.
+//
+// Batches inserts (api/_lib/batch.js) instead of one round trip per record — with ~450
+// records that's the difference between a handful of queries and hundreds, well within the
+// function's time budget either way but far more reliable.
+//
+//   curl -X POST "https://<preview-url>/api/admin?action=migrate-import" \
+//     -H "Authorization: Bearer <SESSION_SECRET>" -H "Content-Type: application/json" \
+//     --data-binary @niyakrish_master_backup.json
+async function migrateImport(req, res) {
+  if (!checkSecret(req, res)) return;
+  const data = req.body || {};
+  const srcInvoices = Array.isArray(data.invoices) ? data.invoices : [];
+  const srcCustomers = Array.isArray(data.customers) ? data.customers : [];
+  const srcGatepasses = Array.isArray(data.gatepasses) ? data.gatepasses : [];
+  const srcPayments = Array.isArray(data.payments) ? data.payments : [];
+
+  const summary = { customers: 0, customerPricing: 0, invoices: 0, invoiceRows: 0, gatepasses: 0, payments: 0, paymentAllocations: 0, notes: [] };
+
+  try {
+    await withTransaction(async (client) => {
+      // ---- customers ----
+      if (srcCustomers.length) {
+        const rows = srcCustomers.map(c => [c.name || '', c.phone || '', c.gstin || '', c.address || '', c.site || '', c.pincode || '', c.createdAt || new Date().toISOString()]);
+        await batchInsert(client, 'customers', ['name', 'phone', 'gstin', 'address', 'site', 'pincode', 'created_at'], rows, {
+          onConflict: 'ON CONFLICT (lower(name)) DO NOTHING',
+        });
+      }
+      const { rows: allCustomers } = await client.query('SELECT id, name FROM customers');
+      const custIdByName = new Map(allCustomers.map(c => [c.name.toLowerCase(), c.id]));
+      summary.customers = srcCustomers.filter(c => custIdByName.has((c.name || '').toLowerCase())).length;
+
+      const pricingRows = [];
+      srcCustomers.forEach(c => {
+        const custId = custIdByName.get((c.name || '').toLowerCase());
+        if (!custId) return;
+        (c.pricing || []).forEach(p => {
+          if (!p.grade) return;
+          pricingRows.push([custId, p.grade, p.rate || 0, p.productName || 'Ready Mix Concrete', p.hsnCode || '38245010', p.hsnDesc || 'READY MIX CONCRETE']);
+        });
+      });
+      if (pricingRows.length) {
+        await batchInsert(client, 'customer_pricing', ['customer_id', 'grade', 'rate', 'product_name', 'hsn_code', 'hsn_desc'], pricingRows);
+        summary.customerPricing = pricingRows.length;
+      }
+
+      // ---- invoices ----
+      // A handful of legacy records have an empty invoiceNo (a pre-existing bug in the old
+      // app, not something this migration caused) — give each one a real number past the
+      // highest one seen instead of silently dropping real invoice data.
+      let maxSeenNo = 0;
+      srcInvoices.forEach(inv => { const n = parseInt(inv.invoiceNo, 10); if (!isNaN(n) && n > maxSeenNo) maxSeenNo = n; });
+      let nextSynthetic = maxSeenNo + 1;
+      const resolvedNoByInvoice = new Map();
+      srcInvoices.forEach((inv, idx) => {
+        let no = (inv.invoiceNo || '').toString().trim();
+        if (!no) {
+          no = String(nextSynthetic++);
+          summary.notes.push(`Invoice with no number (customer "${inv.customer?.name || 'unknown'}", dated ${inv.invoiceDate || 'unknown'}, ₹${inv.totals?.netAmount ?? '?'}) assigned new number ${no} — please verify.`);
+        }
+        resolvedNoByInvoice.set(idx, no);
+      });
+
+      if (srcInvoices.length) {
+        const invRows = srcInvoices.map((inv, idx) => [
+          resolvedNoByInvoice.get(idx), inv.invoiceDate || '', inv.poNumber || '',
+          inv.customer?.name || '', inv.customer?.phone || '', inv.customer?.gstin || '', inv.customer?.address || '', inv.customer?.site || '', inv.customer?.pin || '',
+          inv.product?.hsnCode || '38245010', inv.product?.hsnDesc || 'READY MIX CONCRETE', inv.product?.productName || 'Ready Mix Concrete', inv.product?.driverName || '', inv.product?.vehicleNo || '',
+          inv.totals?.subTotal || 0, inv.totals?.cgstTotal || 0, inv.totals?.sgstTotal || 0, inv.totals?.tcsAmount || 0, inv.totals?.netAmount || 0,
+          inv.amountWords || '', inv.paidAmount || 0, inv.status || 'Unpaid', inv.remarks || '',
+        ]);
+        await batchInsert(client, 'invoices', [
+          'invoice_no', 'invoice_date', 'po_number',
+          'customer_name', 'customer_phone', 'customer_gstin', 'customer_addr', 'customer_site', 'customer_pin',
+          'hsn_code', 'hsn_desc', 'product_name', 'driver_name', 'vehicle_no',
+          'sub_total', 'cgst_total', 'sgst_total', 'tcs_amount', 'net_amount',
+          'amount_words', 'paid_amount', 'status', 'remarks',
+        ], invRows, { onConflict: 'ON CONFLICT (invoice_no) DO NOTHING' });
+      }
+
+      const { rows: allInvoices } = await client.query('SELECT id, invoice_no FROM invoices');
+      const invIdByNo = new Map(allInvoices.map(i => [i.invoice_no, i.id]));
+      summary.invoices = [...resolvedNoByInvoice.values()].filter(no => invIdByNo.has(no)).length;
+
+      const rowRows = [];
+      srcInvoices.forEach((inv, idx) => {
+        const invId = invIdByNo.get(resolvedNoByInvoice.get(idx));
+        if (!invId) return;
+        (inv.rows || []).forEach((r, pos) => {
+          rowRows.push([invId, pos, r.grade || '', r.qty || 0, r.rate || 0, r.disc_pct || 0, r.cgst_pct ?? 9, r.sgst_pct ?? 9]);
+        });
+      });
+      if (rowRows.length) {
+        await batchInsert(client, 'invoice_rows', ['invoice_id', 'position', 'grade', 'qty', 'rate', 'disc_pct', 'cgst_pct', 'sgst_pct'], rowRows);
+        summary.invoiceRows = rowRows.length;
+      }
+
+      // ---- gate passes ----
+      if (srcGatepasses.length) {
+        const gpRows = srcGatepasses.map(g => [
+          g.gpno || '', g.gpdate || '', g.vehicle || '', g.dest || '', g.driver || '', g.mtype || '',
+          g.ptype || 'Non-Returnable', g.challan || '', g.totalQty || '', g.remarks || '',
+          JSON.stringify(g.items || []), g.savedAt || new Date().toISOString(),
+        ]);
+        const inserted = await batchInsert(client, 'gate_passes', [
+          'gp_no', 'gp_date', 'vehicle', 'dest', 'driver', 'mtype', 'ptype', 'challan', 'total_qty', 'remarks', 'items', 'saved_at',
+        ], gpRows, { onConflict: 'ON CONFLICT (gp_no) DO NOTHING', returning: 'id' });
+        summary.gatepasses = inserted.length;
+      }
+
+      // ---- payments (+ allocations from appliedTo) ----
+      if (srcPayments.length) {
+        const payRows = srcPayments.map(p => [
+          p.customerName || '', p.linkedInvoice || null, p.date || '', p.amount || 0,
+          p.paymentMode || 'Cash', p.refNo || '', p.notes || '', p.createdAt || new Date().toISOString(),
+        ]);
+        const insertedPays = await batchInsert(client, 'payments', [
+          'customer_name', 'linked_invoice', 'date', 'amount', 'payment_mode', 'ref_no', 'notes', 'created_at',
+        ], payRows, { returning: 'id' });
+        summary.payments = insertedPays.length;
+
+        const allocRows = [];
+        srcPayments.forEach((p, idx) => {
+          const payId = insertedPays[idx]?.id;
+          if (!payId) return;
+          (p.appliedTo || []).forEach(a => {
+            allocRows.push([payId, a.invoiceNo, a.amount || 0]);
+          });
+        });
+        if (allocRows.length) {
+          await batchInsert(client, 'payment_allocations', ['payment_id', 'invoice_no', 'amount'], allocRows);
+          summary.paymentAllocations = allocRows.length;
+        }
+      }
+
+      // ---- sequences: bring them up to at least what the import implies ----
+      const importedInvoiceSeq = Math.max(maxSeenNo, parseInt(data.invoice_seq, 10) || 0, nextSynthetic - 1);
+      const importedGpSeq = parseInt(data.gp_seq, 10) || 0;
+      await client.query('UPDATE sequences SET value = GREATEST(value, $1) WHERE key = $2', [importedInvoiceSeq, 'invoice_seq']);
+      await client.query('UPDATE sequences SET value = GREATEST(value, $1) WHERE key = $2', [importedGpSeq, 'gp_seq']);
+    });
+
+    res.status(200).json({ ok: true, summary });
+  } catch (e) {
+    res.status(500).json({ error: e.message, summary });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const action = req.query.action;
 
   if (action === 'init-schema') return initSchema(req, res);
   if (action === 'bootstrap-auth') return bootstrapAuth(req, res);
+  if (action === 'migrate-import') return migrateImport(req, res);
   res.status(404).json({ error: 'Not found' });
 }
 
