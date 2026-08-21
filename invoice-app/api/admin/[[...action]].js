@@ -1,16 +1,19 @@
-import { query } from '../_lib/db.js';
-
-// One-time (but safe to re-run — every statement is idempotent) schema setup, callable over
-// HTTP since there's no way to run `psql` against Neon from here directly. Guarded by
-// SESSION_SECRET as a bearer token — the same secret you set in Vercel for signing login
-// sessions — so only someone who already has that value can trigger it.
+// One-time setup routes, consolidated into one function for the same reason as
+// api/auth/[[...action]].js (Vercel Hobby plan's 12-function-per-deployment cap).
 //
-// Usage (run this yourself; the secret never needs to be shared with anyone else):
-//   curl -X POST https://<your-preview-url>/api/admin/init-schema \
+// Both actions are guarded by SESSION_SECRET as a bearer token, so schema creation and the
+// initial admin password can be set up by curl commands run directly by whoever holds that
+// secret — the password itself never has to pass through anyone else.
+//
+//   curl -X POST https://<preview-url>/api/admin/init-schema \
 //     -H "Authorization: Bearer <SESSION_SECRET>"
 //
-// The SQL below is kept identical to invoice-app/schema.sql — inlined here (rather than read
-// from disk) so it's guaranteed to be part of the serverless function bundle.
+//   curl -X POST https://<preview-url>/api/admin/bootstrap-auth \
+//     -H "Authorization: Bearer <SESSION_SECRET>" -H "Content-Type: application/json" \
+//     -d '{"username":"admin","password":"choose-a-real-password"}'
+import bcrypt from 'bcryptjs';
+import { query } from '../_lib/db.js';
+
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_credentials (
   id            int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
@@ -213,20 +216,43 @@ CREATE TABLE IF NOT EXISTS company_settings (
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 `;
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
+function checkSecret(req, res) {
   const secret = process.env.SESSION_SECRET;
-  if (!secret) return res.status(500).json({ error: 'SESSION_SECRET is not set in Vercel env vars.' });
+  if (!secret) { res.status(500).json({ error: 'SESSION_SECRET is not set in Vercel env vars.' }); return false; }
+  if ((req.headers.authorization || '') !== `Bearer ${secret}`) { res.status(401).json({ error: 'Unauthorized' }); return false; }
+  return true;
+}
 
-  const auth = req.headers.authorization || '';
-  if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'Unauthorized' });
-
+async function initSchema(req, res) {
+  if (!checkSecret(req, res)) return;
   try {
-    await query('CREATE EXTENSION IF NOT EXISTS pgcrypto'); // for gen_random_uuid()
+    await query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
     await query(SCHEMA_SQL);
     res.status(200).json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+}
+
+async function bootstrapAuth(req, res) {
+  if (!checkSecret(req, res)) return;
+  const { username, password } = req.body || {};
+  if (!username || !password || password.length < 6) {
+    return res.status(400).json({ error: 'username and password (min 6 chars) are required' });
+  }
+  const { rows } = await query('SELECT id FROM auth_credentials WHERE id = 1');
+  if (rows.length) return res.status(409).json({ error: 'Already set up — use /api/auth/change-password instead.' });
+
+  const hash = await bcrypt.hash(password, 12);
+  await query('INSERT INTO auth_credentials (id, username, password_hash) VALUES (1, $1, $2)', [username, hash]);
+  res.status(201).json({ ok: true });
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const action = (req.query.action || [])[0];
+
+  if (action === 'init-schema') return initSchema(req, res);
+  if (action === 'bootstrap-auth') return bootstrapAuth(req, res);
+  res.status(404).json({ error: 'Not found' });
 }
