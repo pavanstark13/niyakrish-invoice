@@ -1756,6 +1756,9 @@ table.list-table tbody td {
             <label style="margin-top:6px;">Customer Address</label>
             <textarea id="custAddr"></textarea>
             <label style="margin-top:6px;">Site Name &amp; Address</label>
+            <select id="siteAddrSelect" onchange="handleSiteAddrSelectChange(this)" style="margin-bottom:4px; padding:4px; font-size:12px; width:100%;">
+              <option value="">-- Select a known site or type new below --</option>
+            </select>
             <textarea id="siteAddr"></textarea>
           </div>
 
@@ -3831,6 +3834,7 @@ table.list-table tbody td {
         fillIfEmpty('custAddr',  match.address);
         fillIfEmpty('siteAddr',  match.site);
         fillIfEmpty('pincode',   match.pincode);
+        populateSiteAddrOptions(match.name);
         showToast('✓ Customer auto-filled from GSTIN', 'success');
         return;
       }
@@ -3842,6 +3846,7 @@ table.list-table tbody td {
         fillIfEmpty('custPhone', invMatch.customer?.phone);
         fillIfEmpty('custAddr',  invMatch.customer?.address);
         fillIfEmpty('siteAddr',  invMatch.customer?.site);
+        populateSiteAddrOptions(invMatch.customer?.name || '');
         showToast('✓ Customer auto-filled from invoice history', 'success');
         return;
       }
@@ -4041,7 +4046,8 @@ table.list-table tbody td {
         document.getElementById('custAddr').value = c.address || '';
         document.getElementById('siteAddr').value = c.site || '';
         document.getElementById('pincode').value = c.pincode || '';
-        
+        populateSiteAddrOptions(c.name);
+
         // Outstanding balance warning
         const billed = getStoredInvoices()
           .filter(i => _nameMatch(i.customer?.name, c.name))
@@ -4067,6 +4073,49 @@ table.list-table tbody td {
         buildCopy();
         showToast('✓ Client loaded as Destination', 'success');
       }
+    }
+
+    // Populates the Site dropdown with every distinct site known for this customer — their
+    // own default site, every site used in their rate catalog, and every site used on their
+    // past invoices. Picking one sets #siteAddr to that exact string, so it always matches a
+    // site-specific rate exactly (as opposed to typing it fresh each time and risking a typo
+    // that silently falls back to the default rate instead of the intended site's).
+    function populateSiteAddrOptions(custName) {
+      const select = document.getElementById('siteAddrSelect');
+      if (!select) return;
+      const placeholder = '<option value="">-- Select a known site or type new below --</option>';
+      if (!custName) { select.innerHTML = placeholder; return; }
+
+      const sitesByKey = new Map(); // lowercase -> first-seen original casing
+      const add = (s) => {
+        const t = (s || '').trim();
+        if (t && !sitesByKey.has(t.toLowerCase())) sitesByKey.set(t.toLowerCase(), t);
+      };
+
+      const cust = getStoredCustomers().find(c => _nameMatch(c.name, custName));
+      if (cust) {
+        add(cust.site);
+        (cust.pricing || []).forEach(p => add(p.site));
+      }
+      getStoredInvoices().forEach(inv => {
+        if (_nameMatch(inv.customer?.name, custName)) add(inv.customer?.site);
+      });
+
+      const sorted = Array.from(sitesByKey.values()).sort((a, b) => a.localeCompare(b));
+      select.innerHTML = placeholder + sorted.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+
+    function handleSiteAddrSelectChange(sel) {
+      if (!sel.value) return;
+      const siteAddrEl = document.getElementById('siteAddr');
+      if (siteAddrEl) {
+        siteAddrEl.value = sel.value;
+        siteAddrEl.classList.add('autofilled-highlight');
+        setTimeout(() => siteAddrEl.classList.remove('autofilled-highlight'), 1200);
+      }
+      // Site just changed — re-run rate autofill for every row already filled in, so a
+      // site-specific rate takes effect immediately instead of only on the next grade edit.
+      document.querySelectorAll('.item-grade').forEach(handleGradeInputChange);
     }
 
     // Adaptive pricing: trigger HSN and Rate Autofill when Grade changes
@@ -5441,6 +5490,7 @@ table.list-table tbody td {
       document.getElementById('custPhone').value = inv.customer?.phone || '';
       document.getElementById('custAddr').value = inv.customer?.address || '';
       document.getElementById('siteAddr').value = inv.customer?.site || '';
+      populateSiteAddrOptions(inv.customer?.name || '');
       if(document.getElementById('pincode')) {
         document.getElementById('pincode').value = inv.customer?.pin || '';
       }
