@@ -1,0 +1,11 @@
+{
+  "name": "niyakrish-invoice-api",
+  "private": true,
+  "type": "module",
+  "description": "Backend for the Niyakrish Invoice app — Vercel serverless functions under api/. The frontend (index.html + src/) has no build step; this package.json only affects api/'s dependencies at deploy time.",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
