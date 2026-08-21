@@ -11,6 +11,7 @@ function toJson(c, pricing) {
     pricing: (pricing || []).map(p => ({
       grade: p.grade, rate: Number(p.rate),
       productName: p.product_name, hsnCode: p.hsn_code, hsnDesc: p.hsn_desc,
+      site: p.site || '',
     })),
   };
 }
@@ -38,11 +39,16 @@ async function createCustomer(req, res) {
     );
     for (const p of (body.pricing || [])) {
       await client.query(
-        `INSERT INTO customer_pricing (customer_id, grade, rate, product_name, hsn_code, hsn_desc) VALUES ($1,$2,$3,$4,$5,$6)`,
-        [c.id, p.grade, p.rate || 0, p.productName || 'Ready Mix Concrete', p.hsnCode || '38245010', p.hsnDesc || 'READY MIX CONCRETE']
+        `INSERT INTO customer_pricing (customer_id, grade, rate, product_name, hsn_code, hsn_desc, site) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [c.id, p.grade, p.rate || 0, p.productName || 'Ready Mix Concrete', p.hsnCode || '38245010', p.hsnDesc || 'READY MIX CONCRETE', p.site || '']
       );
     }
-    return toJson(c, body.pricing);
+    // Re-select the just-inserted rows rather than the request body — the DB has already
+    // applied defaults (product_name/hsn_code/hsn_desc) for anything the client omitted, and
+    // the request body's camelCase field names don't match what toJson()'s pricing mapper
+    // expects anyway (it reads p.product_name etc., not p.productName).
+    const { rows: savedPricing } = await client.query('SELECT * FROM customer_pricing WHERE customer_id = $1', [c.id]);
+    return toJson(c, savedPricing);
   });
 
   res.status(201).json(result);
@@ -60,8 +66,8 @@ async function updateCustomer(id, req, res) {
       await client.query('DELETE FROM customer_pricing WHERE customer_id = $1', [id]);
       for (const p of body.pricing) {
         await client.query(
-          `INSERT INTO customer_pricing (customer_id, grade, rate, product_name, hsn_code, hsn_desc) VALUES ($1,$2,$3,$4,$5,$6)`,
-          [id, p.grade, p.rate || 0, p.productName || 'Ready Mix Concrete', p.hsnCode || '38245010', p.hsnDesc || 'READY MIX CONCRETE']
+          `INSERT INTO customer_pricing (customer_id, grade, rate, product_name, hsn_code, hsn_desc, site) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [id, p.grade, p.rate || 0, p.productName || 'Ready Mix Concrete', p.hsnCode || '38245010', p.hsnDesc || 'READY MIX CONCRETE', p.site || '']
         );
       }
     }
