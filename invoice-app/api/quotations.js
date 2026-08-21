@@ -1,10 +1,9 @@
-// Consolidated quotation routes — see api/auth/[[...action]].js for why.
-//   GET/POST /api/quotations             list / create
-//   PUT/DELETE /api/quotations/:quoteNo  update / delete
-import { query, withTransaction, nextSeq } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { quotationRowToJson } from '../_lib/serialize.js';
-import { pathSegments } from '../_lib/http.js';
+// Quotation routes, dispatched by method + ?no= (see api/auth.js for why not a path segment).
+//   GET/POST /api/quotations           list / create
+//   PUT/DELETE /api/quotations?no=QT-001  update / delete
+import { query, withTransaction, nextSeq } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
+import { quotationRowToJson } from './_lib/serialize.js';
 
 async function listQuotations(req, res) {
   const { rows: quotes } = await query('SELECT * FROM quotations ORDER BY quote_no');
@@ -107,14 +106,14 @@ async function deleteQuotation(quoteNo, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const quoteNo = req.query.no;
 
-  if (path.length === 0) {
+  if (quoteNo) {
+    if (req.method === 'PUT') return updateQuotation(quoteNo, req, res);
+    if (req.method === 'DELETE') return deleteQuotation(quoteNo, res);
+  } else {
     if (req.method === 'GET') return listQuotations(req, res);
     if (req.method === 'POST') return createQuotation(req, res);
-  } else if (path.length === 1) {
-    if (req.method === 'PUT') return updateQuotation(path[0], req, res);
-    if (req.method === 'DELETE') return deleteQuotation(path[0], res);
   }
   res.status(404).json({ error: 'Not found' });
 }

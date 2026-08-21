@@ -1,14 +1,14 @@
-// Consolidated gate pass routes — see api/auth/[[...action]].js for why.
-//   GET  /api/gatepasses               list
-//   GET  /api/gatepasses/next-number   atomically claims + returns the next GP number
-//                                       (mirrors the old app's setDefaults(), which claimed
-//                                       a number as soon as the form opened, whether or not
-//                                       the user went on to submit it)
-//   POST /api/gatepasses                create
-//   DELETE /api/gatepasses/:id          delete
-import { query, withTransaction, nextSeq } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { pathSegments } from '../_lib/http.js';
+// Gate pass routes, dispatched by method + ?id= / ?action= (see api/auth.js for why not a
+// path segment).
+//   GET  /api/gatepasses                 list
+//   GET  /api/gatepasses?action=next-number  atomically claims + returns the next GP number
+//                                             (mirrors the old app's setDefaults(), which
+//                                             claimed a number as soon as the form opened,
+//                                             whether or not the user went on to submit it)
+//   POST /api/gatepasses                 create
+//   DELETE /api/gatepasses?id=<uuid>     delete
+import { query, withTransaction, nextSeq } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
 
 function toJson(g) {
   return {
@@ -51,15 +51,15 @@ async function deleteGatePass(id, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const id = req.query.id;
+  const action = req.query.action;
 
-  if (path.length === 0) {
+  if (action === 'next-number' && req.method === 'GET') return nextGpNo(req, res);
+  if (id) {
+    if (req.method === 'DELETE') return deleteGatePass(id, res);
+  } else {
     if (req.method === 'GET') return listGatePasses(req, res);
     if (req.method === 'POST') return createGatePass(req, res);
-  } else if (path.length === 1 && path[0] === 'next-number') {
-    if (req.method === 'GET') return nextGpNo(req, res);
-  } else if (path.length === 1) {
-    if (req.method === 'DELETE') return deleteGatePass(path[0], res);
   }
   res.status(404).json({ error: 'Not found' });
 }

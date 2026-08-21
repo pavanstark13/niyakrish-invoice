@@ -1,9 +1,8 @@
-// Consolidated payment routes — see api/auth/[[...action]].js for why.
+// Payment routes, dispatched by method + ?id= (see api/auth.js for why not a path segment).
 //   GET/POST /api/payments        list / create (allocates to invoices transactionally)
-//   DELETE   /api/payments/:id    reverses the exact recorded allocation, transactionally
-import { query, withTransaction } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { pathSegments } from '../_lib/http.js';
+//   DELETE   /api/payments?id=<uuid>  reverses the exact recorded allocation, transactionally
+import { query, withTransaction } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
 
 function toJson(p, allocations) {
   return {
@@ -97,13 +96,13 @@ async function deletePayment(id, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const id = req.query.id;
 
-  if (path.length === 0) {
+  if (id) {
+    if (req.method === 'DELETE') return deletePayment(id, res);
+  } else {
     if (req.method === 'GET') return listPayments(req, res);
     if (req.method === 'POST') return createPayment(req, res);
-  } else if (path.length === 1) {
-    if (req.method === 'DELETE') return deletePayment(path[0], res);
   }
   res.status(404).json({ error: 'Not found' });
 }

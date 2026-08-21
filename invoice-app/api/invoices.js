@@ -1,16 +1,15 @@
-// Consolidated invoice routes (list/create/get/update/delete/mark-paid) in one catch-all
-// function — see api/auth/[[...action]].js for why (Vercel Hobby plan's 12-function cap).
+// Invoice routes, dispatched by method + ?no= / ?action= (see api/auth.js for why not a
+// path segment).
 //
-//   GET    /api/invoices             list
-//   POST   /api/invoices             create (server assigns invoice_no atomically)
-//   GET    /api/invoices/:invoiceNo  get one
-//   PUT    /api/invoices/:invoiceNo  update (content only — paid_amount/status untouched)
-//   DELETE /api/invoices/:invoiceNo  delete
-//   POST   /api/invoices/mark-paid   body: { invoiceNo } — mark fully paid + record payment
-import { query, withTransaction, nextSeq } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { invoiceRowToJson } from '../_lib/serialize.js';
-import { pathSegments } from '../_lib/http.js';
+//   GET    /api/invoices                  list
+//   POST   /api/invoices                  create (server assigns invoice_no atomically)
+//   GET    /api/invoices?no=779           get one
+//   PUT    /api/invoices?no=779           update (content only — paid_amount/status untouched)
+//   DELETE /api/invoices?no=779           delete
+//   POST   /api/invoices?action=mark-paid body: { invoiceNo } — mark fully paid + record payment
+import { query, withTransaction, nextSeq } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
+import { invoiceRowToJson } from './_lib/serialize.js';
 
 async function listInvoices(req, res) {
   const { rows: invoices } = await query('SELECT * FROM invoices ORDER BY invoice_no');
@@ -184,18 +183,17 @@ async function markPaid(req, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const invoiceNo = req.query.no;
+  const action = req.query.action;
 
-  if (path.length === 0) {
-    if (req.method === 'GET') return listInvoices(req, res);
-    if (req.method === 'POST') return createInvoice(req, res);
-  } else if (path.length === 1 && path[0] === 'mark-paid') {
-    if (req.method === 'POST') return markPaid(req, res);
-  } else if (path.length === 1) {
-    const invoiceNo = path[0];
+  if (action === 'mark-paid' && req.method === 'POST') return markPaid(req, res);
+  if (invoiceNo) {
     if (req.method === 'GET') return getInvoice(invoiceNo, res);
     if (req.method === 'PUT') return updateInvoice(invoiceNo, req, res);
     if (req.method === 'DELETE') return deleteInvoice(invoiceNo, res);
+  } else {
+    if (req.method === 'GET') return listInvoices(req, res);
+    if (req.method === 'POST') return createInvoice(req, res);
   }
   res.status(404).json({ error: 'Not found' });
 }

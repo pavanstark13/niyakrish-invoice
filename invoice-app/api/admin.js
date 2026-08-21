@@ -1,19 +1,17 @@
-// One-time setup routes, consolidated into one function for the same reason as
-// api/auth/[[...action]].js (Vercel Hobby plan's 12-function-per-deployment cap).
+// One-time setup routes, dispatched by ?action= (see api/auth.js for why not a path segment).
 //
-// Both actions are guarded by SESSION_SECRET as a bearer token, so schema creation and the
-// initial admin password can be set up by curl commands run directly by whoever holds that
-// secret — the password itself never has to pass through anyone else.
+// Both guarded by SESSION_SECRET as a bearer token, so schema creation and the initial admin
+// password can be set up by curl commands run directly by whoever holds that secret — the
+// password itself never has to pass through anyone else.
 //
-//   curl -X POST https://<preview-url>/api/admin/init-schema \
+//   curl -X POST "https://<preview-url>/api/admin?action=init-schema" \
 //     -H "Authorization: Bearer <SESSION_SECRET>"
 //
-//   curl -X POST https://<preview-url>/api/admin/bootstrap-auth \
+//   curl -X POST "https://<preview-url>/api/admin?action=bootstrap-auth" \
 //     -H "Authorization: Bearer <SESSION_SECRET>" -H "Content-Type: application/json" \
 //     -d '{"username":"admin","password":"choose-a-real-password"}'
 import bcrypt from 'bcryptjs';
-import { query } from '../_lib/db.js';
-import { pathSegments } from '../_lib/http.js';
+import { query } from './_lib/db.js';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_credentials (
@@ -242,7 +240,7 @@ async function bootstrapAuth(req, res) {
     return res.status(400).json({ error: 'username and password (min 6 chars) are required' });
   }
   const { rows } = await query('SELECT id FROM auth_credentials WHERE id = 1');
-  if (rows.length) return res.status(409).json({ error: 'Already set up — use /api/auth/change-password instead.' });
+  if (rows.length) return res.status(409).json({ error: 'Already set up — use /api/auth?action=change-password instead.' });
 
   const hash = await bcrypt.hash(password, 12);
   await query('INSERT INTO auth_credentials (id, username, password_hash) VALUES (1, $1, $2)', [username, hash]);
@@ -251,7 +249,7 @@ async function bootstrapAuth(req, res) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const action = pathSegments(req.query.action)[0];
+  const action = req.query.action;
 
   if (action === 'init-schema') return initSchema(req, res);
   if (action === 'bootstrap-auth') return bootstrapAuth(req, res);

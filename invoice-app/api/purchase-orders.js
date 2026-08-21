@@ -1,10 +1,9 @@
-// Consolidated purchase order routes — see api/auth/[[...action]].js for why.
-//   GET/POST /api/purchase-orders          list / create
-//   PUT/DELETE /api/purchase-orders/:poNo  update / delete
-import { query, withTransaction, nextSeq } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { poRowToJson } from '../_lib/serialize.js';
-import { pathSegments } from '../_lib/http.js';
+// Purchase order routes, dispatched by method + ?no= (see api/auth.js for why not a path segment).
+//   GET/POST /api/purchase-orders           list / create
+//   PUT/DELETE /api/purchase-orders?no=PO-001  update / delete
+import { query, withTransaction, nextSeq } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
+import { poRowToJson } from './_lib/serialize.js';
 
 async function listPOs(req, res) {
   const { rows: pos } = await query('SELECT * FROM purchase_orders ORDER BY po_no');
@@ -101,14 +100,14 @@ async function deletePO(poNo, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const poNo = req.query.no;
 
-  if (path.length === 0) {
+  if (poNo) {
+    if (req.method === 'PUT') return updatePO(poNo, req, res);
+    if (req.method === 'DELETE') return deletePO(poNo, res);
+  } else {
     if (req.method === 'GET') return listPOs(req, res);
     if (req.method === 'POST') return createPO(req, res);
-  } else if (path.length === 1) {
-    if (req.method === 'PUT') return updatePO(path[0], req, res);
-    if (req.method === 'DELETE') return deletePO(path[0], res);
   }
   res.status(404).json({ error: 'Not found' });
 }

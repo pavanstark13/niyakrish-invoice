@@ -1,18 +1,26 @@
-// Consolidated auth routes — Vercel's Hobby plan caps a deployment at 12 serverless
-// functions, so login/logout/me/change-password share one catch-all function instead of
-// four separate files (see api/invoices/[[...path]].js for the same pattern applied to
-// resources with more than one operation).
+// Auth routes, dispatched by ?action= instead of a path segment.
+//
+// Vercel's plain (non-framework) file routing doesn't support Next.js-style optional
+// catch-all filenames ([[...x]].js) the way it looks like it should — it only strips the
+// outer bracket pair, leaving the query key literally named "[...x]" instead of "x", and
+// still requires at least one path segment to match at all. Rather than fight that, every
+// multi-operation resource in this API dispatches on an ordinary query string, which Vercel
+// parses completely normally — no bracket routing involved at all.
+//
+//   POST /api/auth?action=login            body: { username, password }
+//   POST /api/auth?action=logout
+//   GET  /api/auth?action=me
+//   POST /api/auth?action=change-password  body: { currentPassword, newUsername, newPassword }
 import bcrypt from 'bcryptjs';
-import { query } from '../_lib/db.js';
-import { signSession, setSessionCookie, clearSessionCookie, getSession, requireAuth } from '../_lib/auth.js';
-import { pathSegments } from '../_lib/http.js';
+import { query } from './_lib/db.js';
+import { signSession, setSessionCookie, clearSessionCookie, getSession, requireAuth } from './_lib/auth.js';
 
 async function login(req, res) {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
 
   const { rows } = await query('SELECT username, password_hash FROM auth_credentials WHERE id = 1');
-  if (!rows.length) return res.status(500).json({ error: 'No credentials configured — see api/admin/bootstrap-auth.' });
+  if (!rows.length) return res.status(500).json({ error: 'No credentials configured — see /api/admin?action=bootstrap-auth.' });
 
   const cred = rows[0];
   const ok = cred.username === username && await bcrypt.compare(password, cred.password_hash);
@@ -51,7 +59,7 @@ async function changePassword(req, res) {
 }
 
 export default async function handler(req, res) {
-  const action = pathSegments(req.query.action)[0];
+  const action = req.query.action;
 
   if (action === 'login' && req.method === 'POST') return login(req, res);
   if (action === 'logout' && req.method === 'POST') return logout(req, res);

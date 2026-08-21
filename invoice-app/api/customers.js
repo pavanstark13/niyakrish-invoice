@@ -1,9 +1,8 @@
-// Consolidated customer routes — see api/auth/[[...action]].js for why.
+// Customer routes, dispatched by method + ?id= (see api/auth.js for why not a path segment).
 //   GET/POST /api/customers        list / create
-//   PUT/DELETE /api/customers/:id  update / delete
-import { query, withTransaction } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
-import { pathSegments } from '../_lib/http.js';
+//   PUT/DELETE /api/customers?id=<uuid>  update / delete
+import { query, withTransaction } from './_lib/db.js';
+import { requireAuth } from './_lib/auth.js';
 
 function toJson(c, pricing) {
   return {
@@ -80,14 +79,14 @@ async function deleteCustomer(id, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = pathSegments(req.query.path);
+  const id = req.query.id;
 
-  if (path.length === 0) {
+  if (id) {
+    if (req.method === 'PUT') return updateCustomer(id, req, res);
+    if (req.method === 'DELETE') return deleteCustomer(id, res);
+  } else {
     if (req.method === 'GET') return listCustomers(req, res);
     if (req.method === 'POST') return createCustomer(req, res);
-  } else if (path.length === 1) {
-    if (req.method === 'PUT') return updateCustomer(path[0], req, res);
-    if (req.method === 'DELETE') return deleteCustomer(path[0], res);
   }
   res.status(404).json({ error: 'Not found' });
 }
