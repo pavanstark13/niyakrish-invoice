@@ -53,8 +53,10 @@ CREATE TABLE IF NOT EXISTS customer_pricing (
   rate         numeric(12,2) NOT NULL DEFAULT 0,
   product_name text NOT NULL DEFAULT 'Ready Mix Concrete',
   hsn_code     text NOT NULL DEFAULT '38245010',
-  hsn_desc     text NOT NULL DEFAULT 'READY MIX CONCRETE'
+  hsn_desc     text NOT NULL DEFAULT 'READY MIX CONCRETE',
+  site         text NOT NULL DEFAULT ''
 );
+ALTER TABLE customer_pricing ADD COLUMN IF NOT EXISTS site text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS customer_pricing_customer_idx ON customer_pricing (customer_id);
 
 CREATE TABLE IF NOT EXISTS invoices (
