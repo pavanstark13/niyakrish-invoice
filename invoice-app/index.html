@@ -3397,7 +3397,6 @@ table.list-table tbody td {
     // Default credentials — change via Settings > Change Password
     // Default: username=admin  password=Niyakrish@690
     const DEFAULT_USER = 'admin';
-    const DEFAULT_PASS_HASH = 'a4a3c3e8b1f2d6e7c9b0a5f4e2d1c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4a3c2'; // placeholder, real hash set below
 
     async function sha256(str){
       const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -5568,8 +5567,8 @@ table.list-table tbody td {
           <tr>
             <td>${inv.invoiceNo || ''}</td>
             <td>${inv.invoiceDate ? inv.invoiceDate.replace('T', ' ') : ''}</td>
-            <td style="font-weight:700;">${(inv.customer?.name) || ''}</td>
-            <td>${inv.poNumber || '-'}</td>
+            <td style="font-weight:700;">${escapeHtml(inv.customer?.name || '')}</td>
+            <td>${escapeHtml(inv.poNumber || '-')}</td>
             <td style="text-align:right; font-weight:700;">₹${formatNum(inv.totals?.netAmount || 0)}</td>
             <td>${statusBadge}</td>
             <td>
@@ -6147,13 +6146,20 @@ table.list-table tbody td {
     }
 
     // ======= OVERDUE DETECTION =======
+    // Parses a "YYYY-MM-DD" (or "YYYY-MM-DDTHH:mm...") string as local midnight,
+    // instead of `new Date(str)` which treats a date-only string as UTC and skews by IST's +5:30.
+    function parseLocalDate(dateStr) {
+      const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+
     function getOverdueInvoices() {
       const today = new Date(); today.setHours(0,0,0,0);
       return getStoredInvoices().filter(inv => {
         if ((inv.status || 'Unpaid') === 'Paid') return false;
-        if (inv.dueDate) return new Date(inv.dueDate) < today;
+        if (inv.dueDate) return parseLocalDate(inv.dueDate) < today;
         if (inv.invoiceDate) {
-          const daysDiff = (today - new Date(inv.invoiceDate.slice(0,10))) / 86400000;
+          const daysDiff = (today - parseLocalDate(inv.invoiceDate)) / 86400000;
           return daysDiff > 45;
         }
         return false;
