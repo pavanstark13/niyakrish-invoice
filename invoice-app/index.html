@@ -5859,8 +5859,7 @@ table.list-table tbody td {
     }
 
     function fitSheetToOnePage(sheetEl){
-      sheetEl.style.transform = '';
-      sheetEl.style.transformOrigin = '';
+      sheetEl.style.zoom = '';
       forceHideNoPrintElements(sheetEl);
 
       const MM_TO_PX = 96 / 25.4;
@@ -5868,15 +5867,20 @@ table.list-table tbody td {
 
       const actualHeight = sheetEl.scrollHeight;
       if (actualHeight > pageContentHeightPx) {
+        // CSS `zoom` (not `transform: scale`) — transform only changes how an element is
+        // *painted*, not its layout box size, and a browser's print pagination decides page
+        // breaks from the layout size. That mismatch is exactly why this still printed as
+        // "2 sheets of paper" despite the visible content looking shrunk to fit: the browser
+        // was still reserving a second page for the untransformed height underneath. `zoom`
+        // (Chrome/Edge/Safari; not standard, but this app's printing is Chrome-only in
+        // practice) genuinely resizes the layout box, so pagination actually respects it.
         const scale = pageContentHeightPx / actualHeight;
-        sheetEl.style.transform = `scale(${scale})`;
-        sheetEl.style.transformOrigin = 'top left';
+        sheetEl.style.zoom = scale;
       }
     }
 
     function resetSheetFit(sheetEl){
-      sheetEl.style.transform = '';
-      sheetEl.style.transformOrigin = '';
+      sheetEl.style.zoom = '';
       restoreNoPrintElements(sheetEl);
     }
 
