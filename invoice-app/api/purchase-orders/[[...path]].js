@@ -4,6 +4,7 @@
 import { query, withTransaction, nextSeq } from '../_lib/db.js';
 import { requireAuth } from '../_lib/auth.js';
 import { poRowToJson } from '../_lib/serialize.js';
+import { pathSegments } from '../_lib/http.js';
 
 async function listPOs(req, res) {
   const { rows: pos } = await query('SELECT * FROM purchase_orders ORDER BY po_no');
@@ -100,7 +101,7 @@ async function deletePO(poNo, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = req.query.path || [];
+  const path = pathSegments(req.query.path);
 
   if (path.length === 0) {
     if (req.method === 'GET') return listPOs(req, res);

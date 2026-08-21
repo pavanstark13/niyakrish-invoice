@@ -13,6 +13,7 @@
 //     -d '{"username":"admin","password":"choose-a-real-password"}'
 import bcrypt from 'bcryptjs';
 import { query } from '../_lib/db.js';
+import { pathSegments } from '../_lib/http.js';
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS auth_credentials (
@@ -250,7 +251,7 @@ async function bootstrapAuth(req, res) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const action = (req.query.action || [])[0];
+  const action = pathSegments(req.query.action)[0];
 
   if (action === 'init-schema') return initSchema(req, res);
   if (action === 'bootstrap-auth') return bootstrapAuth(req, res);

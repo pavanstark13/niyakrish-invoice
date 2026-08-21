@@ -4,6 +4,7 @@
 import { query, withTransaction, nextSeq } from '../_lib/db.js';
 import { requireAuth } from '../_lib/auth.js';
 import { quotationRowToJson } from '../_lib/serialize.js';
+import { pathSegments } from '../_lib/http.js';
 
 async function listQuotations(req, res) {
   const { rows: quotes } = await query('SELECT * FROM quotations ORDER BY quote_no');
@@ -106,7 +107,7 @@ async function deleteQuotation(quoteNo, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = req.query.path || [];
+  const path = pathSegments(req.query.path);
 
   if (path.length === 0) {
     if (req.method === 'GET') return listQuotations(req, res);

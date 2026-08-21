@@ -5,6 +5,7 @@
 import bcrypt from 'bcryptjs';
 import { query } from '../_lib/db.js';
 import { signSession, setSessionCookie, clearSessionCookie, getSession, requireAuth } from '../_lib/auth.js';
+import { pathSegments } from '../_lib/http.js';
 
 async function login(req, res) {
   const { username, password } = req.body || {};
@@ -50,7 +51,7 @@ async function changePassword(req, res) {
 }
 
 export default async function handler(req, res) {
-  const action = (req.query.action || [])[0];
+  const action = pathSegments(req.query.action)[0];
 
   if (action === 'login' && req.method === 'POST') return login(req, res);
   if (action === 'logout' && req.method === 'POST') return logout(req, res);

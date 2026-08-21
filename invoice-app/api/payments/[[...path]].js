@@ -3,6 +3,7 @@
 //   DELETE   /api/payments/:id    reverses the exact recorded allocation, transactionally
 import { query, withTransaction } from '../_lib/db.js';
 import { requireAuth } from '../_lib/auth.js';
+import { pathSegments } from '../_lib/http.js';
 
 function toJson(p, allocations) {
   return {
@@ -96,7 +97,7 @@ async function deletePayment(id, res) {
 
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return;
-  const path = req.query.path || [];
+  const path = pathSegments(req.query.path);
 
   if (path.length === 0) {
     if (req.method === 'GET') return listPayments(req, res);
