@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -662,6 +661,12 @@
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
+      }
+
+      #multiCopyPrint.active-print .sheet {
+        margin: 8mm auto !important;
+        display: block !important;
+        box-shadow: none !important;
       }
 
       /* Hide headers, footers, side actions */
@@ -1445,8 +1450,11 @@ table.list-table tbody td {
 
   <!-- ── SIDEBAR BACKDROP OVERLAY ── -->
   <div class="sidebar-backdrop no-print" id="sidebar-backdrop" onclick="closeSidebar()"></div>
-  <iframe id="printFrame" style="position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;"></iframe>
   <iframe id="hidden_iframe" name="hidden_iframe" style="display:none;"></iframe>
+  <!-- Populated by printAllCopies() and printed via window.print() on the main document —
+       not a hidden iframe, which mobile browsers (iOS Safari, Android Chrome) frequently
+       render as a blank page when asked to print a zero-size/invisible frame. -->
+  <div id="multiCopyPrint" style="display:none;"></div>
 
   <!-- ── SIDEBAR NAVIGATION ── -->
   <div class="sidebar no-print">
@@ -1657,8 +1665,8 @@ table.list-table tbody td {
           <button class="btn" onclick="printAllCopies()">Print All Copies</button>
           <button class="btn secondary" onclick="addRow()">+ Add Item</button>
           <button class="btn secondary danger" onclick="removeSelected()">- Remove Selected</button>
-          <button class="btn secondary" onclick="savePDF()">Save PDF</button>
-          <button class="btn secondary" onclick="saveSeparateCopiesPDF()">Save Copies PDF</button>
+          <button class="btn secondary" onclick="printInvoice()">Save PDF</button>
+          <button class="btn secondary" onclick="printAllCopies()">Save Copies PDF</button>
           <button class="btn secondary" onclick="openSummary()">Summary</button>
           <button class="btn secondary" onclick="duplicateCurrentInvoice()">Duplicate</button>
           <button class="btn secondary" onclick="switchView('history')">📋 All Invoices</button>
@@ -5265,9 +5273,10 @@ table.list-table tbody td {
       }, 100);
     }
 
-    function cloneSheetWithValuesAndLabel(type, targetDoc){
+    function cloneSheetWithValuesAndLabel(type){
       const sheet = document.getElementById('sheet');
       const clone = sheet.cloneNode(true);
+      clone.removeAttribute('id'); // avoid a duplicate #sheet while the clones are in the DOM
 
       const origFields  = sheet.querySelectorAll('input, textarea, select');
       const cloneFields = clone.querySelectorAll('input, textarea, select');
@@ -5286,7 +5295,7 @@ table.list-table tbody td {
 
       let badge = clone.querySelector('#copyLabel');
       if(!badge){
-        badge = clone.ownerDocument.createElement('div');
+        badge = document.createElement('div');
         badge.id = 'copyLabel';
         badge.className = 'copy-label';
         clone.appendChild(badge);
@@ -5294,51 +5303,39 @@ table.list-table tbody td {
       badge.textContent = type + ' Copy';
       badge.style.display = 'block';
 
-      return targetDoc.importNode(clone, true);
+      return clone;
     }
 
+    // Builds all three copies into #multiCopyPrint (in the main document) and prints via
+    // window.print() directly — not a hidden iframe. A hidden, zero-size iframe's
+    // contentWindow.print() is notoriously unreliable on mobile (iOS Safari and Android
+    // Chrome have both been seen rendering it as a blank page), and every other print path
+    // in this app already prints the main document directly, so this now matches that
+    // proven-working pattern instead of being the one exception.
     async function printAllCopies(){
       await trySave();
 
       const copies = ['Original','Duplicate','Transport'];
-      const frame = document.getElementById('printFrame');
-      const doc = frame.contentDocument || frame.contentWindow.document;
+      const container = document.getElementById('multiCopyPrint');
+      container.innerHTML = '';
 
-      // Collect all <style> blocks from the main document
-      const styleTags = Array.from(document.querySelectorAll('style'))
-        .map(s => '<style>' + s.textContent + '</style>')
-        .join('\n');
-
-      doc.open();
-      doc.write(
-        '<!DOCTYPE html><html><head>' +
-          '<meta charset="utf-8"><title>Invoice Copies</title>' +
-          styleTags +
-          '<style>.no-print{display:none!important} .sheet{margin:8mm auto!important; display:block!important; box-shadow:none!important;} .sidebar{display:none!important} .main-content{margin:0!important;padding:0!important;}</style>' +
-        '</head><body></body></html>'
-      );
-      doc.close();
-
-      const body = doc.body;
       copies.forEach((type, idx) => {
-        const importedSheet = cloneSheetWithValuesAndLabel(type, doc);
-        const wrapper = doc.createElement('div');
+        const clonedSheet = cloneSheetWithValuesAndLabel(type);
+        const wrapper = document.createElement('div');
         if (idx < copies.length - 1) wrapper.style.pageBreakAfter = 'always';
-        wrapper.appendChild(importedSheet);
-        body.appendChild(wrapper);
+        wrapper.appendChild(clonedSheet);
+        container.appendChild(wrapper);
       });
 
-      const imgs = Array.from(doc.images || []);
-      const waitImages = imgs.length
-        ? Promise.all(imgs.map(img => img.complete
-            ? Promise.resolve()
-            : new Promise(res => { img.onload = img.onerror = res; })))
-        : Promise.resolve();
+      container.classList.add('active-print');
 
-      waitImages.then(() => {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-      });
+      setTimeout(function() {
+        window.print();
+        setTimeout(function() {
+          container.classList.remove('active-print');
+          container.innerHTML = '';
+        }, 300);
+      }, 100);
     }
 
     async function duplicateCurrentInvoice(){
@@ -5360,48 +5357,6 @@ table.list-table tbody td {
       }catch(e){
         showToast(e.message || 'Could not duplicate invoice.', 'error');
       }
-    }
-
-    function savePDF(){
-      const element = document.getElementById('sheet');
-      const invoiceNo = document.getElementById('invoiceNo')?.value || "invoice";
-
-      const opt = {
-        margin: 0.5,
-        filename: invoiceNo + '.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      };
-
-      html2pdf().set(opt).from(element).save();
-    }
-
-    async function saveSeparateCopiesPDF() {
-      await trySave();
-      const invoiceNo = document.getElementById('invoiceNo')?.value || "invoice";
-      const copies = ["Original", "Duplicate", "Transport"];
-
-      copies.forEach(type => {
-        const clone = cloneSheetWithValuesAndLabel(type, document);
-
-        const container = document.createElement('div');
-        container.style.width = '210mm';
-        container.style.height = '297mm';
-        container.style.boxSizing = 'border-box';
-        container.style.background = '#fff';
-        container.appendChild(clone);
-
-        const opt = {
-          margin: [0,0,0,0],
-          filename: `${invoiceNo}_${type}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().set(opt).from(container).save();
-      });
     }
 
     // ======= GATE PASS SYSTEM INTEGRATION =======
