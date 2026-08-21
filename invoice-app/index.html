@@ -2057,8 +2057,8 @@ table.list-table tbody td {
           <!-- Product Pricing manager sub-card -->
           <div class="card" id="pricing-manager-card" style="display:none;">
             <h3 style="font-size:14px; font-weight:700; margin-bottom:12px; color: var(--accent);">Custom Product Pricing Catalog</h3>
-            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Set unique rates, HSN codes, and descriptions for this client.</p>
-            
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Set unique rates, HSN codes, and descriptions for this client. Leave Site blank for a default rate that applies everywhere; add a site-specific rate to override it just for that site.</p>
+
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
               <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:6px;">
                 <div class="form-group">
@@ -2069,6 +2069,10 @@ table.list-table tbody td {
                   <label style="font-size:9px;">Custom Rate *</label>
                   <input type="number" step="0.01" id="cust-rate-val" placeholder="0.00" style="padding:5px;">
                 </div>
+              </div>
+              <div class="form-group">
+                <label style="font-size:9px;">Site (leave blank for default rate)</label>
+                <input type="text" id="cust-rate-site" placeholder="e.g. Turuvekere Site — blank applies everywhere" style="padding:5px;">
               </div>
               <div class="form-group">
                 <label style="font-size:9px;">Product Name *</label>
@@ -2095,6 +2099,7 @@ table.list-table tbody td {
                 <thead>
                   <tr style="background:#f1f5f9;">
                     <th style="padding:4px;">Grade</th>
+                    <th style="padding:4px;">Site</th>
                     <th style="padding:4px;">Rate</th>
                     <th style="padding:4px; text-align:right;">Actions</th>
                   </tr>
@@ -3898,7 +3903,13 @@ table.list-table tbody td {
       _setGSTINStatus('cust-gstin-status', '', '#6b7280');
     }
 
-    // Customer custom products pricing controllers
+    // Customer custom products pricing controllers.
+    //
+    // A pricing entry is keyed by (grade, site) rather than grade alone — a customer can have
+    // one rate for a grade that applies everywhere (site left blank) plus separate overrides
+    // for specific sites where they negotiated a different rate. Delete passes the array index
+    // rather than re-embedding grade/site text into the onclick string, since site is free text
+    // and could contain a quote character that would otherwise break the inline handler.
     function renderCustomerCustomRatesTable(custId) {
       const cust = getStoredCustomers().find(c => c.id === custId);
       const tbody = document.getElementById('cust-pricing-list-tbody');
@@ -3906,16 +3917,17 @@ table.list-table tbody td {
 
       const pricing = cust.pricing || [];
       if(pricing.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:10px; color:var(--text-muted);">No custom product rates added. Defaults will apply.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:10px; color:var(--text-muted);">No custom product rates added. Defaults will apply.</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = pricing.map(p => `
+      tbody.innerHTML = pricing.map((p, i) => `
         <tr style="border-bottom:1px solid #eee;">
           <td style="padding:6px; font-weight:700;">${escapeHtml(p.grade)}</td>
+          <td style="padding:6px; color:${p.site ? '#111827' : 'var(--text-muted)'};">${p.site ? escapeHtml(p.site) : 'All sites (default)'}</td>
           <td style="padding:6px; font-weight:700; color:var(--accent);">₹${formatNum(p.rate)}</td>
           <td style="padding:6px; text-align:right;">
-            <button class="btn danger" style="padding:2px 6px; font-size:10px;" onclick="deleteCustomerCustomRate('${cust.id}', '${p.grade}')">Delete</button>
+            <button class="btn danger" style="padding:2px 6px; font-size:10px;" onclick="deleteCustomerCustomRate('${cust.id}', ${i})">Delete</button>
           </td>
         </tr>
       `).join('');
@@ -3927,6 +3939,7 @@ table.list-table tbody td {
 
       const grade = document.getElementById('cust-rate-grade').value.trim();
       const rate = toNumber(document.getElementById('cust-rate-val').value);
+      const site = document.getElementById('cust-rate-site').value.trim();
       const productName = document.getElementById('cust-rate-prodname').value.trim();
       const hsnCode = document.getElementById('cust-rate-hsn').value.trim();
       const hsnDesc = document.getElementById('cust-rate-hsndesc').value.trim();
@@ -3939,10 +3952,14 @@ table.list-table tbody td {
       const c = getStoredCustomers().find(c => c.id === custId);
       if(!c) return;
 
-      // Upsert by Grade
+      // Upsert by (grade, site) — same grade with a different site is a separate entry, not
+      // an overwrite of the default rate.
       const pricing = (c.pricing || []).slice();
-      const rateIdx = pricing.findIndex(r => r.grade.toLowerCase() === grade.toLowerCase());
-      const item = { grade, rate, productName, hsnCode, hsnDesc };
+      const rateIdx = pricing.findIndex(r =>
+        r.grade.toLowerCase() === grade.toLowerCase() &&
+        (r.site || '').toLowerCase() === site.toLowerCase()
+      );
+      const item = { grade, rate, productName, hsnCode, hsnDesc, site };
       if(rateIdx >= 0) pricing[rateIdx] = item; else pricing.push(item);
 
       try{
@@ -3953,6 +3970,7 @@ table.list-table tbody td {
 
         document.getElementById('cust-rate-grade').value = '';
         document.getElementById('cust-rate-val').value = '';
+        document.getElementById('cust-rate-site').value = '';
         document.getElementById('cust-rate-prodname').value = '';
         showToast('✓ Custom rate catalog updated', 'success');
       }catch(e){
@@ -3960,10 +3978,10 @@ table.list-table tbody td {
       }
     }
 
-    async function deleteCustomerCustomRate(custId, grade) {
+    async function deleteCustomerCustomRate(custId, index) {
       const c = getStoredCustomers().find(c => c.id === custId);
       if(!c) return;
-      const pricing = (c.pricing || []).filter(r => r.grade !== grade);
+      const pricing = (c.pricing || []).filter((r, i) => i !== index);
 
       try{
         await Api.customers.update(custId, { ...c, pricing });
@@ -4055,8 +4073,18 @@ table.list-table tbody td {
     function handleGradeInputChange(el) {
       if(!el || activeClientPricing.length === 0) return;
       const gradeVal = el.value.trim().toLowerCase();
-      const match = activeClientPricing.find(p => p.grade.trim().toLowerCase() === gradeVal);
-      if(!match) return;
+      const candidates = activeClientPricing.filter(p => p.grade.trim().toLowerCase() === gradeVal);
+      if(!candidates.length) return;
+
+      // A customer can have several rates for the same grade — one per site, plus optionally
+      // a blank-site default. Prefer whatever's typed into the site address field right now;
+      // fall back to the default (blank-site) rate; fall back to whatever's left so a customer
+      // with only the old flat per-grade rate still autofills exactly as before.
+      const siteVal = (document.getElementById('siteAddr')?.value || '').trim().toLowerCase();
+      const match =
+        (siteVal && candidates.find(p => (p.site || '').trim().toLowerCase() === siteVal)) ||
+        candidates.find(p => !(p.site || '').trim()) ||
+        candidates[0];
 
       const tr = el.closest('tr');
       if(!tr) return;
@@ -5105,19 +5133,29 @@ table.list-table tbody td {
       const custName = (inv.customer?.name || '').trim();
       if (!custName) return false;
 
+      // Keyed by (grade, site) — matches only the site this invoice was actually billed to,
+      // so saving an invoice for Site B doesn't clobber the rate already learned for Site A.
+      // Before this, both sites shared one pricing entry per grade and every save silently
+      // overwrote it with whichever site was billed most recently.
+      const site = (inv.customer?.site || '').trim();
+
       const exists = getStoredCustomers().find(c => _nameMatch(c.name, custName));
       if (exists) {
         const pricing = (exists.pricing || []).slice();
         let updated = false;
         (inv.rows || []).forEach(row => {
           if (!row.grade || row.rate <= 0) return;
-          const rIdx = pricing.findIndex(p => p.grade.toLowerCase() === row.grade.toLowerCase());
+          const rIdx = pricing.findIndex(p =>
+            p.grade.toLowerCase() === row.grade.toLowerCase() &&
+            (p.site || '').toLowerCase() === site.toLowerCase()
+          );
           const item = {
             grade: row.grade,
             rate: row.rate,
             productName: inv.product?.productName || 'Ready Mix Concrete',
             hsnCode: inv.product?.hsnCode || '38245010',
-            hsnDesc: inv.product?.hsnDesc || 'READY MIX CONCRETE'
+            hsnDesc: inv.product?.hsnDesc || 'READY MIX CONCRETE',
+            site,
           };
           if (rIdx >= 0) { pricing[rIdx] = item; updated = true; }
           else { pricing.push(item); updated = true; }
@@ -5138,7 +5176,8 @@ table.list-table tbody td {
           rate: row.rate,
           productName: inv.product?.productName || 'Ready Mix Concrete',
           hsnCode: inv.product?.hsnCode || '38245010',
-          hsnDesc: inv.product?.hsnDesc || 'READY MIX CONCRETE'
+          hsnDesc: inv.product?.hsnDesc || 'READY MIX CONCRETE',
+          site,
         });
       });
 
