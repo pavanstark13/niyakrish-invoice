@@ -44,9 +44,9 @@ async function createPO(req, res) {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       await client.query(
-        `INSERT INTO po_rows (po_id, position, description, qty, unit, rate, gst_pct)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [po.id, i, r.description || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
+        `INSERT INTO po_rows (po_id, position, description, hsn, qty, unit, rate, gst_pct)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [po.id, i, r.description || '', r.hsn || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
       );
     }
     return poRowToJson(po, rows);
@@ -80,9 +80,9 @@ async function updatePO(poNo, req, res) {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       await client.query(
-        `INSERT INTO po_rows (po_id, position, description, qty, unit, rate, gst_pct)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [po.id, i, r.description || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
+        `INSERT INTO po_rows (po_id, position, description, hsn, qty, unit, rate, gst_pct)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [po.id, i, r.description || '', r.hsn || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
       );
     }
     return poRowToJson(po, rows);

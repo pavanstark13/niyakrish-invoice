@@ -93,6 +93,7 @@ export function poRowToJson(po, rows) {
     },
     rows: rows.map(r => ({
       description: r.description,
+      hsn: r.hsn,
       qty: Number(r.qty),
       unit: r.unit,
       rate: Number(r.rate),

@@ -202,22 +202,36 @@ CREATE TABLE IF NOT EXISTS po_rows (
   po_id       uuid NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
   position    int NOT NULL DEFAULT 0,
   description text NOT NULL DEFAULT '',
+  hsn         text NOT NULL DEFAULT '',
   qty         numeric(12,2) NOT NULL DEFAULT 0,
   unit        text NOT NULL DEFAULT '',
   rate        numeric(12,2) NOT NULL DEFAULT 0,
   gst_pct     numeric(5,2) NOT NULL DEFAULT 18
 );
+ALTER TABLE po_rows ADD COLUMN IF NOT EXISTS hsn text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS po_rows_po_idx ON po_rows (po_id);
 
 -- ======= COMPANY SETTINGS =======
 -- Singleton row (id always 1).
 CREATE TABLE IF NOT EXISTS company_settings (
-  id       int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  name     text NOT NULL DEFAULT 'Niyakrish Industries',
-  gstin    text NOT NULL DEFAULT '',
-  cin      text NOT NULL DEFAULT '',
-  address  text NOT NULL DEFAULT '',
-  phone    text NOT NULL DEFAULT '',
-  logo_url text NOT NULL DEFAULT ''
+  id            int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  name          text NOT NULL DEFAULT 'Niyakrish Industries',
+  gstin         text NOT NULL DEFAULT '',
+  cin           text NOT NULL DEFAULT '',
+  address       text NOT NULL DEFAULT '',
+  phone         text NOT NULL DEFAULT '',
+  logo_url      text NOT NULL DEFAULT '',
+  bank_name     text NOT NULL DEFAULT '',
+  bank_acc_name text NOT NULL DEFAULT '',
+  bank_acc_no   text NOT NULL DEFAULT '',
+  bank_ifsc     text NOT NULL DEFAULT '',
+  bank_branch   text NOT NULL DEFAULT ''
 );
+-- ADD COLUMN IF NOT EXISTS so re-running this script against a database that was already
+-- initialized before the bank fields were added still picks them up.
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_name text NOT NULL DEFAULT '';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_acc_name text NOT NULL DEFAULT '';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_acc_no text NOT NULL DEFAULT '';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_ifsc text NOT NULL DEFAULT '';
+ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS bank_branch text NOT NULL DEFAULT '';
 INSERT INTO company_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

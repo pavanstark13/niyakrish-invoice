@@ -2,9 +2,6 @@
 <html lang="en">
 <head>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <!-- Firebase compat SDK (v9 compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -1639,7 +1636,7 @@ table.list-table tbody td {
             💾 Open Data Center
           </button>
           <div id="backup-status-text" style="font-size:11px; text-align:center; color: #10b981; font-weight:600;">
-            ✓ Safe Offline Storage Active
+            ☁️ Connected to Database
           </div>
         </div>
       </div>
@@ -2437,81 +2434,17 @@ table.list-table tbody td {
         </div>
       </div>
 
-      <!-- Cloud Sync Block — password protected -->
+      <!-- Database status — the app now talks to a real Postgres backend (api/) instead of
+           Firestore, so there's no client-side connection config to manage here anymore. -->
       <div class="card" style="margin-top:20px; border-color:#6366f1;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0;">☁️ Firebase Cloud Sync</h3>
-          <span id="fb-lock-badge" style="font-size:11px; background:#fef3c7; color:#92400e; border:1px solid #fcd34d; border-radius:12px; padding:2px 10px; font-weight:700;">🔒 Locked</span>
-        </div>
-        <div id="cloud-sync-status" style="font-size:12px; font-weight:700; margin-bottom:12px; color:#6b7280;">💾 Not Connected</div>
-
-        <!-- Locked state -->
-        <div id="fb-locked-panel" style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:16px; text-align:center;">
-          <div style="font-size:13px; color:#78350f; margin-bottom:12px; line-height:1.6;">
-            🔒 Firebase configuration is admin-protected.<br>
-            <span style="font-size:11px; color:#92400e;">Enter the admin password to access sync settings.</span>
-          </div>
-          <div style="display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;">
-            <input type="password" id="fb-unlock-pass" placeholder="Admin password" style="padding:6px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:12px; width:180px;" onkeydown="if(event.key==='Enter') unlockFirebaseSettings()">
-            <button onclick="unlockFirebaseSettings()" style="padding:6px 16px; font-size:12px; background:#6366f1; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">🔓 Unlock</button>
-          </div>
-          <div id="fb-unlock-err" style="font-size:11px; color:#dc2626; margin-top:6px; min-height:16px;"></div>
-        </div>
-
-        <!-- Unlocked config panel (hidden until password verified) -->
-        <div id="fb-config-panel" style="display:none;">
-          <div style="background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; padding:8px 14px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:11px; color:#065f46; font-weight:600;">🔓 Admin access granted — auto-locks in 5 min</span>
-            <button onclick="lockFirebaseSettings()" style="font-size:11px; padding:3px 10px; border:1px solid #6ee7b7; border-radius:4px; cursor:pointer; background:#fff; color:#065f46; font-weight:600;">🔒 Lock Now</button>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">API Key</label>
-              <input type="text" id="fb-apiKey" placeholder="AIzaSy…" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Auth Domain</label>
-              <input type="text" id="fb-authDomain" placeholder="your-app.firebaseapp.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Project ID</label>
-              <input type="text" id="fb-projectId" placeholder="your-project-id" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Storage Bucket</label>
-              <input type="text" id="fb-storageBucket" placeholder="your-app.appspot.com" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">Messaging Sender ID</label>
-              <input type="text" id="fb-messagingSenderId" placeholder="123456789" style="font-size:12px;">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label style="font-size:11px;">App ID</label>
-              <input type="text" id="fb-appId" placeholder="1:123:web:abc…" style="font-size:12px;">
-            </div>
-          </div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn accent" style="background:#6366f1; justify-content:center;" onclick="saveFirebaseConfig()">💾 Save &amp; Connect</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="syncLocalToCloud()">⬆ Push Local → Cloud</button>
-            <button class="btn secondary" style="justify-content:center;" onclick="loadFromCloud(true)">⬇ Pull Cloud → Local</button>
-            <button class="btn secondary danger" style="justify-content:center;" onclick="disconnectFirebase()">✖ Disconnect</button>
-          </div>
-        </div>
+        <h3 style="font-size:15px; font-weight:700; color:#6366f1; margin:0 0 8px 0;">☁️ Database</h3>
+        <div id="cloud-sync-status" style="font-size:12px; font-weight:700; color:#10b981;">☁️ Connected — all data is stored in Postgres</div>
       </div>
 
-      <!-- Wipe Database Block — also password protected -->
-      <div class="card" style="margin-top:20px; border-color:#fca5a5; background:rgba(254,226,226,0.2);">
-        <h3 style="font-size:15px; font-weight:700; margin-bottom:8px; color:#dc2626;">⚠️ Danger Zone</h3>
-        <p style="font-size:12px; color:#991b1b; margin-bottom:12px;">
-          Permanently wipes all local invoices, gate passes, customers, and payment history from this browser. Admin password required.
-        </p>
-        <!-- Locked wipe -->
-        <div id="wipe-locked-panel" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <input type="password" id="wipe-unlock-pass" placeholder="Admin password to unlock" style="padding:6px 10px; border:1px solid #fca5a5; border-radius:4px; font-size:12px; width:200px;" onkeydown="if(event.key==='Enter') wipeWithPassword()">
-          <button onclick="wipeWithPassword()" style="padding:6px 14px; font-size:12px; background:#dc2626; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600;">⚠ Wipe Database</button>
-          <div id="wipe-unlock-err" style="font-size:11px; color:#dc2626; width:100%;"></div>
-        </div>
-      </div>
+      <!-- The old "wipe local database" feature only ever cleared this browser's cache — now
+           that data lives in a shared server database, a one-click wipe here would delete
+           real business records for everyone, not just this device, so it's been removed
+           rather than reimplemented. Use the database provider's own tools for that. -->
     </div>
 
     <!-- ══ VIEW: GATE PASS HISTORY ══ -->
@@ -3164,6 +3097,16 @@ table.list-table tbody td {
   <div class="toast" id="toast"></div>
 
   <!-- ── SCRIPTS ── -->
+  <!-- Loads first: module scripts run deferred (after parsing) but before the window 'load'
+       event that init() runs on, and nothing below reads window.Api until then. Kept as a
+       separate module script (rather than converting the whole app to type="module") because
+       the rest of the file relies on hundreds of onclick="..." attributes calling global
+       functions, and a module's top-level declarations aren't attached to window the way a
+       classic script's are. -->
+  <script type="module">
+    import { Api } from './src/api-client.js';
+    window.Api = Api;
+  </script>
   <script>
     // ======= GOOGLE SHEETS INTEGRATION CONFIG =======
     const SCRIPT_URL = '';
@@ -3179,30 +3122,6 @@ table.list-table tbody td {
       TOAST_DURATION_MS:   3500,
       RECALC_DEBOUNCE_MS:  60,
     });
-
-    // ======= localStorage read cache =======
-    // Avoids re-parsing JSON on every getStored* call.
-    // Invalidated on every write and on incoming realtime sync updates.
-    const _lsCache = Object.create(null);
-
-    function _lsRead(key, defaultJson) {
-      if (key in _lsCache) return _lsCache[key];
-      try { _lsCache[key] = JSON.parse(localStorage.getItem(key) || defaultJson); }
-      catch(e) { _lsCache[key] = JSON.parse(defaultJson); }
-      return _lsCache[key];
-    }
-
-    function _lsWrite(key, val) {
-      _lsCache[key] = val;
-      const json = JSON.stringify(val);
-      localStorage.setItem(key, json);
-      return json; // returned so cloudPush can reuse the serialized string
-    }
-
-    function _lsWriteRaw(key, raw) {
-      delete _lsCache[key]; // raw strings come from external sources — force re-parse on next read
-      localStorage.setItem(key, raw);
-    }
 
     // Returns true only when the dashboard panel is visible — guards expensive re-renders.
     function _isDashboardActive() {
@@ -3359,50 +3278,44 @@ table.list-table tbody td {
       }
     }
 
-    // ======= LOCALSTORAGE DATABASE ENGINES =======
-    // All reads go through _lsCache (avoids redundant JSON.parse on hot paths).
-    // All writes update the cache first, then persist, then push to cloud.
-    // Dashboard refresh is guarded: only runs when dashboard panel is actually visible.
+    // ======= IN-MEMORY DATA CACHE (fed by the backend API, api/) =======
+    // Every record lives in Postgres now — this cache is just what's currently known in this
+    // tab, populated by loadAllData() after login and kept in sync by re-fetching the
+    // relevant list after each mutation. Replaces the old localStorage/_lsCache/Firestore
+    // layer entirely: the server + database now own consistency, so none of that machinery
+    // (cloudPush, realtime onSnapshot listeners, the client-side sequence-claiming
+    // transaction) is needed on the client anymore.
+    let _cache = {
+      invoices: [], customers: [], payments: [], gatepasses: [],
+      quotations: [], purchaseOrders: [], companySettings: null,
+    };
 
-    function getStoredInvoices()  { return _lsRead('invoices',           '[]'); }
-    function getStoredCustomers() { return _lsRead('invoice_customers',  '[]'); }
-    function getStoredPayments()  { return _lsRead('invoice_payments',   '[]'); }
-    function getStoredGatePasses(){ return _lsRead('invoice_gatepasses', '[]'); }
+    function getStoredInvoices()  { return _cache.invoices; }
+    function getStoredCustomers() { return _cache.customers; }
+    function getStoredPayments()  { return _cache.payments; }
+    function getStoredGatePasses(){ return _cache.gatepasses; }
+    function getStoredQuotations(){ return _cache.quotations; }
+    function getStoredPOs()       { return _cache.purchaseOrders; }
 
-    function saveStoredInvoices(arr){
-      cloudPush('invoices', _lsWrite('invoices', arr));
-      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
+    async function refreshInvoices()   { _cache.invoices = await Api.invoices.list(); if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
+    async function refreshCustomers()  { _cache.customers = await Api.customers.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
+    async function refreshPayments()   { _cache.payments = await Api.payments.list(); if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
+    async function refreshGatePasses() { _cache.gatepasses = await Api.gatePasses.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
+    async function refreshQuotations() { _cache.quotations = await Api.quotations.list(); }
+    async function refreshPOs()        { _cache.purchaseOrders = await Api.purchaseOrders.list(); }
+
+    async function loadAllData(){
+      const [invoices, customers, payments, gatepasses, quotations, purchaseOrders, companySettings] = await Promise.all([
+        Api.invoices.list(), Api.customers.list(), Api.payments.list(), Api.gatePasses.list(),
+        Api.quotations.list(), Api.purchaseOrders.list(), Api.companySettings.get(),
+      ]);
+      _cache = { invoices, customers, payments, gatepasses, quotations, purchaseOrders, companySettings };
     }
 
-    function saveStoredCustomers(arr){
-      cloudPush('invoice_customers', _lsWrite('invoice_customers', arr));
-      if (_isDashboardActive()) updateDashboardMetrics();
-    }
-
-    function saveStoredPayments(arr){
-      cloudPush('invoice_payments', _lsWrite('invoice_payments', arr));
-      if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); }
-    }
-
-    function saveStoredGatePasses(arr){
-      cloudPush('invoice_gatepasses', _lsWrite('invoice_gatepasses', arr));
-      if (_isDashboardActive()) updateDashboardMetrics();
-    }
-
-    // ======= FIREBASE CLOUD SYNC =======
-    let db = null;
-    const CLOUD_KEYS = ['invoices','invoice_customers','invoice_payments','invoice_gatepasses','invoice_seq','gp_seq','company_settings','quotations','purchase_orders','quote_seq','po_seq'];
-
-    // ── CUSTOM AUTH (no external service) ──
-    // Default credentials — change via Settings > Change Password
-    // Default: username=admin  password=Niyakrish@690
-    const DEFAULT_USER = 'admin';
-
-    async function sha256(str){
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    }
-
+    // ======= AUTH =======
+    // Real server-verified login (api/auth.js, signed httpOnly session cookie) — replaces
+    // the old client-side sha256/sessionStorage check, which anyone could bypass from
+    // devtools by setting the flag directly, no password needed at all.
     async function doLogin(){
       const user = document.getElementById('login-email').value.trim();
       const pass = document.getElementById('login-password').value;
@@ -3411,37 +3324,27 @@ table.list-table tbody td {
       if(!user || !pass){ err.textContent = 'Enter username and password.'; return; }
       btn.disabled = true; btn.textContent = 'Signing in…'; err.textContent = '';
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-
-      const inputHash = await sha256(user + ':' + pass);
-      if(user === expectedUser && inputHash === expectedHash){
-        sessionStorage.setItem('niyakrish_auth', '1');
-        showApp(user);
-        // Pull latest cloud data then start real-time listeners
-        if(db){
-          btn.textContent = 'Loading data…';
-          await loadFromCloud(false);
-          applyCompanySettings(getCompanySettings());
-          updateDashboardMetrics();
-          renderDashboardCharts();
-          loadAutofills();
-          const invNoInput = document.getElementById('invoiceNo');
-          if(invNoInput) invNoInput.value = peekNextInvoiceNo();
-          refreshActiveView();
-          startRealtimeSync(); // keep all devices in sync from now on
-        }
-        btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        err.textContent = 'Incorrect username or password.';
+      try{
+        const { username } = await Api.auth.login(user, pass);
+        showApp(username);
+        btn.textContent = 'Loading data…';
+        await loadAllData();
+        applyCompanySettings(getCompanySettings());
+        updateDashboardMetrics();
+        renderDashboardCharts();
+        loadAutofills();
+        const invNoInput = document.getElementById('invoiceNo');
+        if(invNoInput) invNoInput.value = await peekNextInvoiceNo();
+        refreshActiveView();
+      }catch(e){
+        err.textContent = e.status === 401 ? 'Incorrect username or password.' : (e.message || 'Sign in failed.');
+      }finally{
         btn.disabled = false; btn.textContent = 'Sign In';
       }
     }
 
-    function doLogout(){
-      sessionStorage.removeItem('niyakrish_auth');
-      stopRealtimeSync();
+    async function doLogout(){
+      try{ await Api.auth.logout(); } catch(e){ console.warn('Logout request failed:', e); }
       hideApp();
     }
 
@@ -3455,21 +3358,15 @@ table.list-table tbody td {
       if(newPass !== confPass){ showToast('New passwords do not match.','error'); return; }
       if(newPass.length < 6){ showToast('Password must be at least 6 characters.','error'); return; }
 
-      const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : DEFAULT_USER;
-      const expectedHash = stored ? stored.passHash : await sha256(DEFAULT_USER + ':Niyakrish@690');
-      const curHash = await sha256(expectedUser + ':' + curPass);
-
-      if(curHash !== expectedHash){ showToast('Current password is incorrect.','error'); return; }
-
-      const newHash = await sha256(newUser + ':' + newPass);
-      const newCreds = JSON.stringify({ username: newUser, passHash: newHash });
-      localStorage.setItem('app_credentials', newCreds);
-      cloudPush('app_credentials', newCreds); // sync to all devices
-      document.getElementById('cp-current').value = '';
-      document.getElementById('cp-new').value = '';
-      document.getElementById('cp-confirm').value = '';
-      showToast('✓ Login credentials updated successfully!','success');
+      try{
+        await Api.auth.changePassword(curPass, newUser, newPass);
+        document.getElementById('cp-current').value = '';
+        document.getElementById('cp-new').value = '';
+        document.getElementById('cp-confirm').value = '';
+        showToast('✓ Login credentials updated successfully!','success');
+      }catch(e){
+        showToast(e.message || 'Could not update credentials.', 'error');
+      }
     }
 
     function showApp(username){
@@ -3486,252 +3383,16 @@ table.list-table tbody td {
       if(btn){ btn.disabled = false; btn.textContent = 'Sign In'; }
     }
 
-    function checkAuth(){
-      if(sessionStorage.getItem('niyakrish_auth')){
-        const stored = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-        showApp(stored ? stored.username : DEFAULT_USER);
+    // Checks whether the session cookie is still valid server-side — replaces the old
+    // sessionStorage flag, which proved nothing about whether a real password was ever given.
+    async function checkAuth(){
+      try{
+        const { username } = await Api.auth.me();
+        showApp(username);
         return true;
-      }
-      return false;
-    }
-
-    // Default config — overridable via Data Center UI
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAd0FzunhKRf_Mv65awqB86DAeaTif6_oE",
-      authDomain: "niyakrish-invoice.firebaseapp.com",
-      projectId: "niyakrish-invoice",
-      storageBucket: "niyakrish-invoice.firebasestorage.app",
-      messagingSenderId: "1007805250679",
-      appId: "1:1007805250679:web:f0ea00778ab3da8871da72"
-    };
-
-    function initFirebase(){
-      const stored = localStorage.getItem('firebase_config');
-      const cfg = stored ? stored : JSON.stringify(DEFAULT_FIREBASE_CONFIG);
-      if(!stored) localStorage.setItem('firebase_config', cfg);
-      try{
-        const config = JSON.parse(cfg);
-        if(!firebase.apps.length) firebase.initializeApp(config);
-        db = firebase.firestore();
-        updateCloudStatus('connected');
-        populateFirebaseForm(config);
       }catch(e){
-        db = null;
-        updateCloudStatus('error');
-        console.warn('Firebase init failed:', e);
+        return false;
       }
-    }
-
-    function populateFirebaseForm(cfg){
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el && cfg[k]) el.value = cfg[k];
-      });
-    }
-
-    function saveFirebaseConfig(){
-      const config = {
-        apiKey: document.getElementById('fb-apiKey').value.trim(),
-        authDomain: document.getElementById('fb-authDomain').value.trim(),
-        projectId: document.getElementById('fb-projectId').value.trim(),
-        storageBucket: document.getElementById('fb-storageBucket').value.trim(),
-        messagingSenderId: document.getElementById('fb-messagingSenderId').value.trim(),
-        appId: document.getElementById('fb-appId').value.trim(),
-      };
-      if(!config.apiKey || !config.projectId){ alert('API Key and Project ID are required.'); return; }
-      localStorage.setItem('firebase_config', JSON.stringify(config));
-      // Re-init (apps can only be initialized once per page load)
-      if(!firebase.apps.length){
-        try{ firebase.initializeApp(config); db = firebase.firestore(); updateCloudStatus('connected'); }
-        catch(e){ updateCloudStatus('error'); alert('Firebase error: '+e.message); }
-      } else {
-        db = firebase.app().firestore();
-        updateCloudStatus('connected');
-      }
-    }
-
-    function disconnectFirebase(){
-      if(!confirm('Remove Firebase connection from this device?')) return;
-      localStorage.removeItem('firebase_config');
-      db = null;
-      updateCloudStatus('offline');
-      ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId'].forEach(k => {
-        const el = document.getElementById('fb-'+k);
-        if(el) el.value = '';
-      });
-    }
-
-    let _cloudPushErrorShown = false;
-    function cloudPush(key, value){
-      if(!db) return;
-      db.collection('niyakrish_data').doc(key).set({ value: value, ts: Date.now() })
-        .catch(e => {
-          console.warn('Cloud push failed for '+key+':', e);
-          updateCloudStatus('error');
-          if(!_cloudPushErrorShown){
-            _cloudPushErrorShown = true;
-            showToast('⚠️ Cloud save failed — check Firebase rules or connection. Data saved locally only.', 'error');
-          }
-        });
-    }
-
-    // ======= ATOMIC CROSS-DEVICE SEQUENCE NUMBERS =======
-    // Plain read-then-write counters (localStorage.getItem → +1 → setItem) race across
-    // devices: two devices creating an invoice/quote/PO/gate pass around the same time can
-    // both read the same "current" value and both save "current+1", producing duplicate
-    // numbers. When online, this runs a Firestore transaction so the read-increment-write is
-    // atomic across every device. Offline, it falls back to a local-only increment — the
-    // only remaining window for a duplicate is two devices creating a record while *both*
-    // are offline at the same time, which a client-only app can't fully close.
-    async function consumeAtomicSeq(localKey, floor){
-      const localVal = parseInt(localStorage.getItem(localKey) || '0', 10);
-      const localFallback = () => {
-        const next = Math.max(localVal, floor || 0) + 1;
-        localStorage.setItem(localKey, String(next));
-        cloudPush(localKey, String(next));
-        return next;
-      };
-      if(!db) return localFallback();
-      try{
-        const ref = db.collection('niyakrish_data').doc(localKey);
-        const next = await db.runTransaction(async (t) => {
-          const snap = await t.get(ref);
-          const cloudVal = snap.exists ? (parseInt(snap.data().value, 10) || 0) : 0;
-          const n = Math.max(localVal, cloudVal, floor || 0) + 1;
-          t.set(ref, { value: String(n), ts: Date.now() });
-          return n;
-        });
-        localStorage.setItem(localKey, String(next));
-        return next;
-      }catch(e){
-        console.warn('Atomic sequence transaction failed for '+localKey+', falling back to local-only increment:', e);
-        return localFallback();
-      }
-    }
-
-    async function cloudPull(key){
-      if(!db) return null;
-      try{
-        const snap = await db.collection('niyakrish_data').doc(key).get();
-        if(snap.exists) return snap.data().value;
-      }catch(e){
-        console.warn('Cloud pull failed for '+key+':', e);
-        throw e; // let caller handle
-      }
-      return null;
-    }
-
-    async function loadFromCloud(manual){
-      if(!db){ if(manual) showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
-      updateCloudStatus('syncing');
-      let loaded = 0, failed = 0;
-      for(const key of CLOUD_KEYS){
-        try{
-          const val = await cloudPull(key);
-          if(val !== null){ _lsWriteRaw(key, val); loaded++; }
-        }catch(e){ failed++; }
-      }
-      if(failed > 0){
-        updateCloudStatus('error');
-        if(manual) showToast('⚠️ Cloud sync failed ('+failed+' errors). Check Firestore security rules — allow read, write for niyakrish_data collection.', 'error');
-      } else {
-        updateCloudStatus('connected');
-        _cloudPushErrorShown = false;
-        if(manual){
-          showToast('✓ Loaded '+loaded+' collections from cloud.', 'success');
-          location.reload();
-        }
-      }
-    }
-
-    async function syncLocalToCloud(){
-      if(!db){ showToast('No cloud connection. Configure Firebase in Data Center.', 'error'); return; }
-      updateCloudStatus('syncing');
-      let pushed = 0, failed = 0;
-      for(const key of CLOUD_KEYS){
-        const val = localStorage.getItem(key);
-        if(val){
-          try{
-            await db.collection('niyakrish_data').doc(key).set({ value: val, ts: Date.now() });
-            pushed++;
-          }catch(e){ failed++; console.warn('Sync push failed for '+key+':', e); }
-        }
-      }
-      if(failed > 0){
-        updateCloudStatus('error');
-        showToast('⚠️ Cloud push failed for '+failed+' collections. Your Firestore security rules likely need to allow writes. Go to Firebase Console → Firestore → Rules.', 'error');
-      } else {
-        updateCloudStatus('connected');
-        showToast('✓ All local data ('+pushed+' collections) pushed to cloud successfully!', 'success');
-      }
-    }
-
-    function updateCloudStatus(state){
-      let text, color;
-      switch(state){
-        case 'connected': text = '☁️ Cloud Sync Active — Auto-saving to Firebase'; color = '#10b981'; break;
-        case 'syncing':   text = '⏳ Syncing with cloud…'; color = '#f59e0b'; break;
-        case 'error':     text = '⚠️ Cloud Error — Running in Offline Mode'; color = '#ef4444'; break;
-        default:          text = '💾 Safe Offline Storage Active'; color = '#6b7280';
-      }
-      const els = [document.getElementById('backup-status-text'), document.getElementById('cloud-sync-status')];
-      els.forEach(el => { if(el){ el.textContent = text; el.style.color = color; } });
-    }
-
-    // ======= REAL-TIME CROSS-DEVICE SYNC (Firestore onSnapshot) =======
-    let _realtimeUnsubs = [];
-
-    function startRealtimeSync(){
-      if(!db) return;
-      stopRealtimeSync(); // clear any previous listeners first
-
-      const keysToWatch = [...CLOUD_KEYS, 'app_credentials'];
-      keysToWatch.forEach(key => {
-        try{
-          const unsub = db.collection('niyakrish_data').doc(key).onSnapshot(snap => {
-            if(!snap.exists) return;
-            const incoming = snap.data().value;
-            if(incoming == null) return;
-            const current = localStorage.getItem(key);
-            if(incoming === current) return; // our own write echoing back — skip
-
-            _lsWriteRaw(key, incoming); // persist + invalidate read cache
-
-            // Only update UI once the user is authenticated
-            if(!sessionStorage.getItem('niyakrish_auth')) return;
-            _applyRealtimeUpdate(key);
-          }, err => {
-            console.warn('Realtime listener error for', key, err);
-            if(err.code === 'permission-denied') updateCloudStatus('error');
-          });
-          _realtimeUnsubs.push(unsub);
-        }catch(e){ console.warn('Could not start listener for', key, e); }
-      });
-    }
-
-    function stopRealtimeSync(){
-      _realtimeUnsubs.forEach(fn => { try{ fn(); }catch(e){} });
-      _realtimeUnsubs = [];
-    }
-
-    function _applyRealtimeUpdate(key){
-      if(key === 'company_settings'){
-        applyCompanySettings(getCompanySettings());
-        populateQuoteCompanyHeader();
-        populatePOCompanyHeader();
-      }
-      const isDataKey = ['invoices','invoice_payments','invoice_customers',
-                         'invoice_gatepasses','invoice_seq','gp_seq'].includes(key);
-      if(isDataKey){
-        updateDashboardMetrics();
-        renderDashboardCharts();
-      }
-      if(key === 'invoice_customers'){ loadAutofills(); populateQCustList(); }
-      if(key === 'invoice_seq' || key === 'gp_seq'){
-        const el = document.getElementById('invoiceNo');
-        if(el) el.value = peekNextInvoiceNo();
-      }
-      refreshActiveView();
     }
 
     // ======= DASHBOARD STATS & PURE SVG CHARTS =======
@@ -3919,7 +3580,7 @@ table.list-table tbody td {
       `).join('');
     }
 
-    function saveCustomer(e) {
+    async function saveCustomer(e) {
       if(e) e.preventDefault();
       const id = document.getElementById('cust-id').value;
       const name = document.getElementById('cust-name').value.trim();
@@ -3934,34 +3595,22 @@ table.list-table tbody td {
         return;
       }
 
-      let all = getStoredCustomers();
-      if(id) {
-        // Edit mode
-        const idx = all.findIndex(c => c.id === id);
-        if(idx >= 0) {
-          all[idx] = { 
-            id, name, phone, gstin, address, site, pincode, 
-            pricing: all[idx].pricing || [],
-            createdAt: all[idx].createdAt || new Date().toISOString() 
-          };
+      try{
+        if(id) {
+          const existing = getStoredCustomers().find(c => c.id === id);
+          await Api.customers.update(id, { name, phone, gstin, address, site, pincode, pricing: existing?.pricing || [] });
           showToast('✓ Customer profile updated', 'success');
+        } else {
+          await Api.customers.create({ name, phone, gstin, address, site, pincode, pricing: [] });
+          showToast('✓ New customer profile registered', 'success');
         }
-      } else {
-        // Add mode
-        const newCust = {
-          id: 'cust_' + Math.random().toString(36).substr(2, 9),
-          name, phone, gstin, address, site, pincode,
-          pricing: [],
-          createdAt: new Date().toISOString()
-        };
-        all.push(newCust);
-        showToast('✓ New customer profile registered', 'success');
+        await refreshCustomers();
+        resetCustomerForm();
+        renderCustomersTable();
+        loadAutofills();
+      }catch(err){
+        showToast(err.message || 'Could not save customer.', 'error');
       }
-
-      saveStoredCustomers(all);
-      resetCustomerForm();
-      renderCustomersTable();
-      loadAutofills();
     }
 
     // ---- GSTIN API lookup (for brand-new customers not in database) ----
@@ -4127,15 +3776,18 @@ table.list-table tbody td {
       renderCustomerCustomRatesTable(cust.id);
     }
 
-    function deleteCustomer(id) {
+    async function deleteCustomer(id) {
       if(!confirm('Are you sure you want to delete this customer?')) return;
-      let all = getStoredCustomers();
-      all = all.filter(c => c.id !== id);
-      saveStoredCustomers(all);
-      renderCustomersTable();
-      resetCustomerForm();
-      loadAutofills();
-      showToast('Customer profile deleted', 'success');
+      try{
+        await Api.customers.delete(id);
+        await refreshCustomers();
+        renderCustomersTable();
+        resetCustomerForm();
+        loadAutofills();
+        showToast('Customer profile deleted', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not delete customer.', 'error');
+      }
     }
 
     function resetCustomerForm() {
@@ -4170,7 +3822,7 @@ table.list-table tbody td {
       `).join('');
     }
 
-    function addCustomerCustomRate() {
+    async function addCustomerCustomRate() {
       const custId = document.getElementById('cust-id').value;
       if(!custId) return;
 
@@ -4185,41 +3837,44 @@ table.list-table tbody td {
         return;
       }
 
-      const all = getStoredCustomers();
-      const idx = all.findIndex(c => c.id === custId);
-      if(idx < 0) return;
-
-      const c = all[idx];
-      c.pricing = c.pricing || [];
+      const c = getStoredCustomers().find(c => c.id === custId);
+      if(!c) return;
 
       // Upsert by Grade
-      const rateIdx = c.pricing.findIndex(r => r.grade.toLowerCase() === grade.toLowerCase());
+      const pricing = (c.pricing || []).slice();
+      const rateIdx = pricing.findIndex(r => r.grade.toLowerCase() === grade.toLowerCase());
       const item = { grade, rate, productName, hsnCode, hsnDesc };
-      if(rateIdx >= 0) c.pricing[rateIdx] = item; else c.pricing.push(item);
+      if(rateIdx >= 0) pricing[rateIdx] = item; else pricing.push(item);
 
-      saveStoredCustomers(all);
-      renderCustomerCustomRatesTable(c.id);
-      renderCustomersTable();
+      try{
+        await Api.customers.update(custId, { ...c, pricing });
+        await refreshCustomers();
+        renderCustomerCustomRatesTable(custId);
+        renderCustomersTable();
 
-      // Reset pricing sub-form
-      document.getElementById('cust-rate-grade').value = '';
-      document.getElementById('cust-rate-val').value = '';
-      document.getElementById('cust-rate-prodname').value = '';
-      showToast('✓ Custom rate catalog updated', 'success');
+        document.getElementById('cust-rate-grade').value = '';
+        document.getElementById('cust-rate-val').value = '';
+        document.getElementById('cust-rate-prodname').value = '';
+        showToast('✓ Custom rate catalog updated', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not update rate catalog.', 'error');
+      }
     }
 
-    function deleteCustomerCustomRate(custId, grade) {
-      const all = getStoredCustomers();
-      const idx = all.findIndex(c => c.id === custId);
-      if(idx < 0) return;
+    async function deleteCustomerCustomRate(custId, grade) {
+      const c = getStoredCustomers().find(c => c.id === custId);
+      if(!c) return;
+      const pricing = (c.pricing || []).filter(r => r.grade !== grade);
 
-      const c = all[idx];
-      c.pricing = (c.pricing || []).filter(r => r.grade !== grade);
-
-      saveStoredCustomers(all);
-      renderCustomerCustomRatesTable(c.id);
-      renderCustomersTable();
-      showToast('Custom rate deleted', 'success');
+      try{
+        await Api.customers.update(custId, { ...c, pricing });
+        await refreshCustomers();
+        renderCustomerCustomRatesTable(custId);
+        renderCustomersTable();
+        showToast('Custom rate deleted', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not delete rate.', 'error');
+      }
     }
 
     // Auto-populating Select Selectors
@@ -4390,7 +4045,10 @@ table.list-table tbody td {
       `).join('');
     }
 
-    function savePayment(e) {
+    // Allocation (which invoices a payment paid down, split across the customer's oldest
+    // unpaid invoices first when not directly linked) is now computed server-side in one
+    // transaction (api/payments.js) — the client just submits the payment intent.
+    async function savePayment(e) {
       if(e) e.preventDefault();
       const customerName = document.getElementById('pay-customer').value;
       const linkedInvoice = document.getElementById('pay-invoice-link').value;
@@ -4405,117 +4063,33 @@ table.list-table tbody td {
         return;
       }
 
-      // appliedTo records exactly which invoices this payment paid down, and how much of
-      // each — so deletePayment() can reverse the *actual* allocation instead of
-      // re-deriving one, which can drift out of sync if other payments/invoices changed
-      // for this customer in between (see deletePayment).
-      const appliedTo = [];
+      try{
+        await Api.payments.create({ customerName, linkedInvoice: linkedInvoice || null, date, amount, paymentMode, refNo, notes });
+        await Promise.all([refreshPayments(), refreshInvoices()]);
 
-      const newPay = {
-        id: 'pay_' + Math.random().toString(36).substr(2, 9),
-        customerName, linkedInvoice, date, amount, paymentMode, refNo, notes,
-        appliedTo,
-        createdAt: new Date().toISOString()
-      };
+        document.getElementById('pay-amount').value = '';
+        document.getElementById('pay-ref').value = '';
+        document.getElementById('pay-notes').value = '';
 
-      // Perform accounting ledger invoice deductions
-      let allInvoices = getStoredInvoices();
-      if(linkedInvoice) {
-        // Direct linkage
-        const idx = allInvoices.findIndex(i => i.invoiceNo === linkedInvoice);
-        if(idx >= 0) {
-          const inv = allInvoices[idx];
-          inv.paidAmount = (inv.paidAmount || 0) + amount;
-          inv.status = inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid';
-          appliedTo.push({ invoiceNo: inv.invoiceNo, amount });
-        }
-      } else {
-        // General Payment: split dynamically across client's oldest unpaid invoices first
-        const clientInvoices = allInvoices.filter(i =>
-          _nameMatch(i.customer?.name, customerName)
-        ).sort((a,b) => (a.invoiceDate || '').localeCompare(b.invoiceDate || ''));
-
-        let remPayment = amount;
-        clientInvoices.forEach(inv => {
-          if(remPayment <= 0) return;
-          const due = (inv.totals?.netAmount || 0) - (inv.paidAmount || 0);
-          if(due > 0) {
-            const payAlloc = Math.min(remPayment, due);
-            inv.paidAmount = (inv.paidAmount || 0) + payAlloc;
-            inv.status = inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid';
-            remPayment -= payAlloc;
-            appliedTo.push({ invoiceNo: inv.invoiceNo, amount: payAlloc });
-          }
-        });
+        handlePaymentCustomerChange(customerName);
+        renderPaymentsHistoryTable();
+        showToast('✓ Payment recorded & allocated', 'success');
+      }catch(err){
+        showToast(err.message || 'Could not record payment.', 'error');
       }
-
-      const allPays = getStoredPayments();
-      allPays.push(newPay);
-      saveStoredPayments(allPays);
-      saveStoredInvoices(allInvoices);
-      
-      document.getElementById('pay-amount').value = '';
-      document.getElementById('pay-ref').value = '';
-      document.getElementById('pay-notes').value = '';
-      
-      handlePaymentCustomerChange(customerName);
-      renderPaymentsHistoryTable();
-      showToast('✓ Payment recorded & allocated', 'success');
     }
 
-    function deletePayment(id) {
+    // Reverses the payment's exact recorded allocation transactionally, server-side.
+    async function deletePayment(id) {
       if(!confirm('Are you sure you want to delete this payment record? Ledger invoices balance will revert.')) return;
-      const allPays = getStoredPayments();
-      const p = allPays.find(x => x.id === id);
-      if(!p) return;
-
-      // Reverse invoice allocations
-      let allInvoices = getStoredInvoices();
-      if(Array.isArray(p.appliedTo) && p.appliedTo.length) {
-        // Reverse the exact allocation this payment made (recorded at save time) —
-        // correct regardless of what other payments/invoices happened since.
-        p.appliedTo.forEach(a => {
-          const idx = allInvoices.findIndex(i => i.invoiceNo === a.invoiceNo);
-          if(idx >= 0) {
-            const inv = allInvoices[idx];
-            inv.paidAmount = Math.max(0, (inv.paidAmount || 0) - a.amount);
-            inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
-          }
-        });
-      } else if(p.linkedInvoice) {
-        const idx = allInvoices.findIndex(i => i.invoiceNo === p.linkedInvoice);
-        if(idx >= 0) {
-          const inv = allInvoices[idx];
-          inv.paidAmount = Math.max(0, (inv.paidAmount || 0) - p.amount);
-          inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
-        }
-      } else {
-        // Legacy payments recorded before `appliedTo` existed have no exact record of which
-        // invoices they paid, so fall back to the old best-effort heuristic (newest-first).
-        const clientInvoices = allInvoices.filter(i =>
-          _nameMatch(i.customer?.name, p.customerName)
-        ).sort((a,b) => (b.invoiceDate || '').localeCompare(a.invoiceDate || '')); // Newest first
-
-        let remRev = p.amount;
-        clientInvoices.forEach(inv => {
-          if(remRev <= 0) return;
-          const invPaid = inv.paidAmount || 0;
-          if(invPaid > 0) {
-            const revAlloc = Math.min(remRev, invPaid);
-            inv.paidAmount = invPaid - revAlloc;
-            inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
-            remRev -= revAlloc;
-          }
-        });
+      try{
+        await Api.payments.delete(id);
+        await Promise.all([refreshPayments(), refreshInvoices()]);
+        renderPaymentsHistoryTable();
+        showToast('Payment record deleted & reversed', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not delete payment.', 'error');
       }
-
-      saveStoredInvoices(allInvoices);
-
-      const filteredPays = allPays.filter(x => x.id !== id);
-      saveStoredPayments(filteredPays);
-
-      renderPaymentsHistoryTable();
-      showToast('Payment record deleted & reversed', 'success');
     }
 
     // ======= CUSTOMER ACCOUNT STATEMENT LEDGER =======
@@ -4775,12 +4349,16 @@ table.list-table tbody td {
       if (inv) { loadInvoice(inv); switchView('invoice'); showToast('Invoice #' + no + ' loaded', 'success'); }
     }
 
-    function deleteInvoice(no) {
+    async function deleteInvoice(no) {
       if (!confirm(`Delete invoice #${no}? This cannot be undone.`)) return;
-      let all = getStoredInvoices().filter(x => x.invoiceNo !== no);
-      saveStoredInvoices(all);
-      renderHistoryView();
-      showToast('Invoice #' + no + ' deleted', 'success');
+      try{
+        await Api.invoices.delete(no);
+        await refreshInvoices();
+        renderHistoryView();
+        showToast('Invoice #' + no + ' deleted', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not delete invoice.', 'error');
+      }
     }
 
     function resetHistoryFilters() {
@@ -4802,8 +4380,6 @@ table.list-table tbody td {
         customers: getStoredCustomers(),
         payments: getStoredPayments(),
         gatepasses: getStoredGatePasses(),
-        invoice_seq: localStorage.getItem('invoice_seq') || '1',
-        gp_seq: localStorage.getItem('gp_seq') || '1',
         exportedAt: new Date().toISOString()
       };
 
@@ -4817,7 +4393,12 @@ table.list-table tbody td {
       showToast('✓ Master database exported successfully', 'success');
     }
 
-    function restoreFullBackup() {
+    // Re-creates each record from the backup file via the normal create endpoints. Note this
+    // is different from the old localStorage-blob restore: the database assigns each
+    // restored invoice/gate-pass a *new* number rather than preserving the original one (the
+    // API has no "insert with this exact number" path — that's only needed for the one-time
+    // Firestore migration, which uses a separate script with direct DB access instead).
+    async function restoreFullBackup() {
       const fileInput = document.getElementById('backup-restore-input');
       if(fileInput.files.length === 0) {
         showToast('⚠️ Choose a backup JSON file first', 'error');
@@ -4825,36 +4406,40 @@ table.list-table tbody td {
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = async function(e) {
+        let data;
         try {
-          const data = JSON.parse(e.target.result);
-          if(!data.invoices || !data.customers || !data.payments) {
-            showToast('❌ Invalid database backup format', 'error');
-            return;
-          }
-
-          if(confirm('Warning: This will merge/overwrite existing storage records. Proceed?')) {
-            // Go through saveStored*()/cloudPush so the in-memory _lsCache is invalidated and
-            // the restore is pushed to Firestore — writing localStorage directly here left the
-            // cache stale, so the very next save silently overwrote the restore with pre-restore data.
-            saveStoredInvoices(data.invoices);
-            saveStoredCustomers(data.customers);
-            saveStoredPayments(data.payments);
-            if(data.gatepasses) saveStoredGatePasses(data.gatepasses);
-            if(data.invoice_seq){ localStorage.setItem('invoice_seq', data.invoice_seq); cloudPush('invoice_seq', data.invoice_seq); }
-            if(data.gp_seq){ localStorage.setItem('gp_seq', data.gp_seq); cloudPush('gp_seq', data.gp_seq); }
-
-            showToast('✓ Backup database restored successfully!', 'success');
-            fileInput.value = '';
-            
-            // Reload active views
-            updateDashboardMetrics();
-            renderDashboardCharts();
-            loadAutofills();
-          }
+          data = JSON.parse(e.target.result);
         } catch(err) {
           showToast('❌ JSON parse failed: ' + err.message, 'error');
+          return;
         }
+        if(!data.invoices || !data.customers || !data.payments) {
+          showToast('❌ Invalid database backup format', 'error');
+          return;
+        }
+        if(!confirm('Warning: this creates new records from the backup file — restored invoices and gate passes will get new numbers, not their original ones. Proceed?')) return;
+
+        let ok = 0, failed = 0;
+        for (const c of data.customers) {
+          try { await Api.customers.create(c); ok++; } catch(err) { failed++; }
+        }
+        for (const inv of data.invoices) {
+          try { await Api.invoices.create(inv); ok++; } catch(err) { failed++; }
+        }
+        for (const p of data.payments) {
+          try { await Api.payments.create(p); ok++; } catch(err) { failed++; }
+        }
+        for (const g of (data.gatepasses || [])) {
+          try { await Api.gatePasses.create(g); ok++; } catch(err) { failed++; }
+        }
+
+        await loadAllData();
+        updateDashboardMetrics();
+        renderDashboardCharts();
+        loadAutofills();
+        fileInput.value = '';
+        showToast(`Restore finished: ${ok} record(s) created${failed ? ', ' + failed + ' failed' : ''}.`, failed ? 'error' : 'success');
       };
       reader.readAsText(fileInput.files[0]);
     }
@@ -4891,76 +4476,6 @@ table.list-table tbody td {
     }
 
     // ======= Firebase Settings Lock =======
-    async function unlockFirebaseSettings() {
-      const passInput = document.getElementById('fb-unlock-pass');
-      const errEl     = document.getElementById('fb-unlock-err');
-      const pass      = passInput?.value || '';
-      if(!pass){ if(errEl) errEl.textContent = 'Enter password.'; return; }
-
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
-        document.getElementById('fb-locked-panel').style.display = 'none';
-        document.getElementById('fb-config-panel').style.display = 'block';
-        const badge = document.getElementById('fb-lock-badge');
-        if(badge){ badge.textContent='🔓 Unlocked'; badge.style.cssText='font-size:11px;background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7;border-radius:12px;padding:2px 10px;font-weight:700;'; }
-        if(passInput) passInput.value = '';
-        if(errEl) errEl.textContent = '';
-        clearTimeout(window._fbAutoLockTimer);
-        window._fbAutoLockTimer = setTimeout(lockFirebaseSettings, 5 * 60 * 1000);
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
-        if(passInput) passInput.value = '';
-      }
-    }
-
-    function lockFirebaseSettings() {
-      const lp = document.getElementById('fb-locked-panel');
-      const cp = document.getElementById('fb-config-panel');
-      const badge = document.getElementById('fb-lock-badge');
-      if(lp) lp.style.display = 'block';
-      if(cp) cp.style.display = 'none';
-      if(badge){ badge.textContent='🔒 Locked'; badge.style.cssText='font-size:11px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:12px;padding:2px 10px;font-weight:700;'; }
-      const pi = document.getElementById('fb-unlock-pass');
-      const ee = document.getElementById('fb-unlock-err');
-      if(pi) pi.value = '';
-      if(ee) ee.textContent = '';
-      clearTimeout(window._fbAutoLockTimer);
-    }
-
-    async function wipeWithPassword() {
-      const passInput = document.getElementById('wipe-unlock-pass');
-      const errEl     = document.getElementById('wipe-unlock-err');
-      const pass      = passInput?.value || '';
-      if(!pass){ if(errEl) errEl.textContent = 'Enter admin password to proceed.'; return; }
-
-      const stored       = JSON.parse(localStorage.getItem('app_credentials') || 'null');
-      const expectedUser = stored ? stored.username : 'admin';
-      const expectedHash = stored ? stored.passHash : await sha256('admin:Niyakrish@690');
-      const inputHash    = await sha256(expectedUser + ':' + pass);
-
-      if(inputHash === expectedHash){
-        if(passInput) passInput.value = '';
-        if(!confirm('⚠️ FINAL WARNING: This will permanently wipe ALL local data — invoices, customers, payments, gate passes. This cannot be undone. Continue?')) return;
-        localStorage.clear();
-        location.reload();
-      } else {
-        if(errEl) errEl.textContent = 'Incorrect password.';
-        if(passInput) passInput.value = '';
-      }
-    }
-
-    function wipeLocalDatabase() {
-      if(!confirm('⚠️ DANGER: This will permanently wipe all local database invoices, customers, and payments in this browser! Are you absolutely sure?')) return;
-      if(confirm('Verify security password: Click OK to proceed with complete wipe.')) {
-        localStorage.clear();
-        location.reload();
-      }
-    }
-
     // CSV Table Exporters
     function exportGatePassesCSV() {
       const dateFrom = document.getElementById('export-date-from')?.value || '';
@@ -5157,19 +4672,22 @@ table.list-table tbody td {
     }
 
     // ======= AUTO-SAVE NEW CUSTOMER FROM INVOICE =======
-    function autoSaveCustomerFromInvoice(inv) {
+    // Called after every invoice save (both new and edited) — creates the customer record on
+    // first invoice for a new name, and keeps an existing customer's per-grade pricing cache
+    // in sync with what's actually being billed. This is the one place that does it (the
+    // server's invoice-create endpoint doesn't), so there's no risk of both racing to create
+    // the same customer against the unique name index.
+    async function autoSaveCustomerFromInvoice(inv) {
       const custName = (inv.customer?.name || '').trim();
       if (!custName) return false;
 
-      const all = getStoredCustomers();
-      const exists = all.find(c => _nameMatch(c.name, custName));
+      const exists = getStoredCustomers().find(c => _nameMatch(c.name, custName));
       if (exists) {
-        // Customer already in DB — update rates if new grades appear
-        const idx = all.indexOf(exists);
+        const pricing = (exists.pricing || []).slice();
         let updated = false;
         (inv.rows || []).forEach(row => {
           if (!row.grade || row.rate <= 0) return;
-          const rIdx = (exists.pricing || []).findIndex(p => p.grade.toLowerCase() === row.grade.toLowerCase());
+          const rIdx = pricing.findIndex(p => p.grade.toLowerCase() === row.grade.toLowerCase());
           const item = {
             grade: row.grade,
             rate: row.rate,
@@ -5177,29 +4695,21 @@ table.list-table tbody td {
             hsnCode: inv.product?.hsnCode || '38245010',
             hsnDesc: inv.product?.hsnDesc || 'READY MIX CONCRETE'
           };
-          if (rIdx >= 0) { exists.pricing[rIdx] = item; updated = true; }
-          else { (exists.pricing = exists.pricing || []).push(item); updated = true; }
+          if (rIdx >= 0) { pricing[rIdx] = item; updated = true; }
+          else { pricing.push(item); updated = true; }
         });
-        if (updated) { all[idx] = exists; saveStoredCustomers(all); loadAutofills(); }
+        if (updated) {
+          await Api.customers.update(exists.id, { ...exists, pricing });
+          await refreshCustomers();
+          loadAutofills();
+        }
         return false;
       }
 
-      // New customer — create profile
-      const newCust = {
-        id: 'cust_' + Math.random().toString(36).substr(2, 9),
-        name: custName,
-        phone: inv.customer?.phone || '',
-        gstin: inv.customer?.gstin || '',
-        address: inv.customer?.address || '',
-        site: inv.customer?.site || '',
-        pincode: inv.customer?.pin || '',
-        pricing: [],
-        createdAt: new Date().toISOString(),
-        autoCreated: true
-      };
+      const pricing = [];
       (inv.rows || []).forEach(row => {
         if (!row.grade || row.rate <= 0) return;
-        newCust.pricing.push({
+        pricing.push({
           grade: row.grade,
           rate: row.rate,
           productName: inv.product?.productName || 'Ready Mix Concrete',
@@ -5208,31 +4718,28 @@ table.list-table tbody td {
         });
       });
 
-      all.push(newCust);
-      saveStoredCustomers(all);
+      await Api.customers.create({
+        name: custName,
+        phone: inv.customer?.phone || '',
+        gstin: inv.customer?.gstin || '',
+        address: inv.customer?.address || '',
+        site: inv.customer?.site || '',
+        pincode: inv.customer?.pin || '',
+        pricing,
+      });
+      await refreshCustomers();
       loadAutofills();
       return true; // new customer created
     }
 
-    // ======= REFACTORED INVOICE NO SEQUENCE =======
-    const MIN_SEQ = 778; // invoices 001-778 already issued; next = 779
-    function getSeq(){
-      const v = localStorage.getItem('invoice_seq');
-      const n = v !== null ? parseInt(v, 10) : 0;
-      if(n < MIN_SEQ){
-        // Stored value is below the floor — correct it immediately in both
-        // localStorage and Firestore so every device stays consistent
-        localStorage.setItem('invoice_seq', String(MIN_SEQ));
-        cloudPush('invoice_seq', String(MIN_SEQ));
-        return MIN_SEQ;
-      }
-      return n;
-    }
+    // ======= INVOICE NO SEQUENCE =======
+    // The real number is now assigned server-side, atomically, inside the same DB
+    // transaction as the invoice insert (see api/invoices.js) — there's no separate
+    // "consume" step here anymore. This is just a non-mutating preview for the read-only
+    // field before the record is actually saved (api/sequences.js).
     function pad(n){ return String(n).padStart(3,'0'); }
-    function peekNextInvoiceNo(){ return pad(getSeq() + 1); }
-    async function consumeNextInvoiceNo(){
-      const next = await consumeAtomicSeq('invoice_seq', MIN_SEQ);
-      updateDashboardMetrics();
+    async function peekNextInvoiceNo(){
+      const { next } = await Api.sequences.peek('invoice_seq');
       return pad(next);
     }
 
@@ -5461,7 +4968,7 @@ table.list-table tbody td {
 
     function loadInvoice(inv){
       // Header
-      document.getElementById('invoiceNo').value = inv.invoiceNo || peekNextInvoiceNo();
+      document.getElementById('invoiceNo').value = inv.invoiceNo || '';
       const _dateEl = document.getElementById('invoiceDate');
       if(_dateEl){ _dateEl.value = inv.invoiceDate || _localDateTimeStr(); _dateEl.dataset.manuallySet = '1'; }
       document.getElementById('poNumber').value = inv.poNumber || '';
@@ -5523,32 +5030,28 @@ table.list-table tbody td {
     async function saveInvoiceToStorage(){
       recalcAll();
       const inv = serializeInvoice();
-      let all = getStoredInvoices();
-      const idx = all.findIndex(x => x.invoiceNo === inv.invoiceNo);
+      const existing = getStoredInvoices().find(x => x.invoiceNo === inv.invoiceNo);
 
-      if(idx >= 0) {
-        // Updating an existing saved invoice — preserve payment data, don't touch seq
-        inv.paidAmount = all[idx].paidAmount || 0;
-        inv.status = inv.paidAmount === 0 ? 'Unpaid' : (inv.paidAmount >= (inv.totals?.netAmount || 0) ? 'Paid' : 'Partially Paid');
-        all[idx] = inv;
+      let saved;
+      if(existing) {
+        // Updating an existing saved invoice — the server doesn't touch paid_amount/status
+        // on update, so the response already reflects whatever they already were.
+        saved = await Api.invoices.update(inv.invoiceNo, inv);
       } else {
-        // Brand-new invoice — atomically consume the sequence number NOW (first save only),
-        // and use *that* as the invoice's real number instead of whatever was merely
-        // previewed in the read-only field: two devices can preview the same number before
-        // either one saves, so the previewed value alone isn't safe to persist as-is.
-        inv.invoiceNo = await consumeNextInvoiceNo();
+        // Brand-new invoice — the server assigns the real invoice number atomically as part
+        // of this call, which may differ from whatever was merely previewed in the read-only
+        // field: two devices can preview the same number before either one saves.
+        saved = await Api.invoices.create(inv);
         const invNoField = document.getElementById('invoiceNo');
-        if (invNoField) invNoField.value = inv.invoiceNo;
-        all.push(inv);
+        if (invNoField) invNoField.value = saved.invoiceNo;
       }
-
-      saveStoredInvoices(all);
+      await refreshInvoices();
 
       // Auto-register customer if not already in database
-      const isNew = autoSaveCustomerFromInvoice(inv);
-      if (isNew) showToast('✓ New customer "' + inv.customer.name + '" auto-saved to database', 'success');
+      const isNew = await autoSaveCustomerFromInvoice(saved);
+      if (isNew) showToast('✓ New customer "' + saved.customer.name + '" auto-saved to database', 'success');
 
-      return inv.invoiceNo;
+      return saved.invoiceNo;
     }
 
     // ======= Modal: View Invoices & Custom Filters =======
@@ -5670,10 +5173,10 @@ table.list-table tbody td {
       }, 100);
     }
 
-    function newInvoice(){
+    async function newInvoice(){
       // PEEK only — do NOT consume/increment the sequence yet
       // The number is consumed only when the invoice is actually saved
-      const nextNo = peekNextInvoiceNo();
+      const nextNo = await peekNextInvoiceNo();
       activeClientPricing = [];
 
       // Reset date field to current time
@@ -5846,20 +5349,17 @@ table.list-table tbody td {
         return;
       }
 
-      const nextNo = await consumeNextInvoiceNo();
-
       const dupInvoice = Object.assign({}, current);
-      dupInvoice.invoiceNo = nextNo;
       dupInvoice.invoiceDate = _localDateTimeStr();
-      dupInvoice.paidAmount = 0;
-      dupInvoice.status = 'Unpaid';
 
-      let all = getStoredInvoices();
-      all.push(dupInvoice);
-      saveStoredInvoices(all);
-
-      loadInvoice(dupInvoice);
-      showToast('✓ Invoice duplicated as #' + nextNo, 'success');
+      try{
+        const saved = await Api.invoices.create(dupInvoice); // server assigns the real number
+        await refreshInvoices();
+        loadInvoice(saved);
+        showToast('✓ Invoice duplicated as #' + saved.invoiceNo, 'success');
+      }catch(e){
+        showToast(e.message || 'Could not duplicate invoice.', 'error');
+      }
     }
 
     function savePDF(){
@@ -6115,19 +5615,20 @@ table.list-table tbody td {
         gpdateInput.value = _localDateTimeStr(now);
       }
 
-      // Only generate a new GP number if the field is empty
+      // Only generate a new GP number if the field is empty. Server-side (api/gatepasses.js
+      // next-number) atomically claims the number even though the record itself isn't saved
+      // yet — matches the old behavior of consuming a number as soon as the blank form opens.
       const gpnoInput = document.getElementById('gpno');
       if (gpnoInput && !gpnoInput.value.trim()) {
-        const yr = String(now.getFullYear()).slice(2) + String(now.getMonth()+1).padStart(2,'0');
-        const gpseq = await consumeAtomicSeq('gp_seq', 0);
+        const { gpno } = await Api.gatePasses.nextNumber();
         // Guard against the user already having typed/loaded a GP number while the
-        // transaction was in flight.
-        if (!gpnoInput.value.trim()) gpnoInput.value = `NI-GP-${yr}-${String(gpseq).padStart(3,'0')}`;
+        // request was in flight.
+        if (!gpnoInput.value.trim()) gpnoInput.value = gpno;
       }
       buildCopy();
     }
 
-    function submitGP() {
+    async function submitGP() {
       const gpno    = document.getElementById('gpno').value.trim();
       const gpdate  = document.getElementById('gpdate').value;
       const vehicle = document.getElementById('vehicle').value.trim();
@@ -6152,18 +5653,17 @@ table.list-table tbody td {
         if (desc) items.push(`${desc} | ${grade} | ${qty} ${unit}`);
       });
 
-      // Save locally in database history as well
-      const record = {
-        id: 'gp_' + Math.random().toString(36).substr(2, 9),
-        gpno, gpdate, vehicle, dest, driver, mtype, ptype, challan, totalQty, remarks, items,
-        savedAt: new Date().toISOString()
-      };
-      const allGPs = getStoredGatePasses();
-      allGPs.push(record);
-      saveStoredGatePasses(allGPs);
-
       const btn = document.getElementById('submitBtn');
       btn.disabled = true; btn.textContent = 'Saving…';
+
+      try{
+        await Api.gatePasses.create({ gpno, gpdate, vehicle, dest, driver, mtype, ptype, challan, totalQty, remarks, items });
+        await refreshGatePasses();
+      }catch(e){
+        showToast(e.message || 'Could not save gate pass.', 'error');
+        btn.disabled = false; btn.textContent = '✔ Save & Post Record';
+        return;
+      }
 
       const iframe = document.getElementById('hidden_iframe');
       iframe.onload = function() {
@@ -6233,6 +5733,9 @@ table.list-table tbody td {
     }
 
     // ======= MARK INVOICE AS PAID =======
+    // The actual work (set paid_amount/status, record the payment + its allocation) now
+    // happens in one DB transaction server-side (api/invoices.js markPaid) — see that file
+    // for why this used to be three separate client-side saves.
     async function markInvoiceAsPaid() {
       let invNo = document.getElementById('invoiceNo').value;
       if (!invNo) { showToast('⚠️ No invoice loaded', 'error'); return; }
@@ -6241,39 +5744,20 @@ table.list-table tbody td {
       if (netAmt <= 0) { showToast('⚠️ Invoice has zero amount', 'error'); return; }
       if (!confirm(`Mark Invoice #${invNo} as fully PAID (₹${formatNum(netAmt)})?`)) return;
 
-      let all = getStoredInvoices();
-      let finalIdx = all.findIndex(x => x.invoiceNo === invNo);
-      if (finalIdx < 0) {
-        // Not saved yet — saveInvoiceToStorage() may assign a fresh atomic invoice number
-        // that differs from the one merely previewed in the field, so re-resolve invNo
-        // from its return value rather than trusting the value captured above.
+      const exists = getStoredInvoices().some(x => x.invoiceNo === invNo);
+      if (!exists) {
+        // Not saved yet — save first; this may assign a fresh atomic invoice number that
+        // differs from the one merely previewed in the field.
         invNo = await saveInvoiceToStorage();
-        all = getStoredInvoices();
-        finalIdx = all.findIndex(x => x.invoiceNo === invNo);
       }
-      if (finalIdx < 0) { showToast('⚠️ Save invoice first', 'error'); return; }
 
-      all[finalIdx].paidAmount = all[finalIdx].totals?.netAmount || netAmt;
-      all[finalIdx].status = 'Paid';
-      saveStoredInvoices(all);
-
-      const newPay = {
-        id: 'pay_' + Math.random().toString(36).substr(2, 9),
-        customerName: document.getElementById('custName').value,
-        linkedInvoice: invNo,
-        date: new Date().toISOString().split('T')[0],
-        amount: all[finalIdx].paidAmount,
-        paymentMode: 'Cash',
-        refNo: '',
-        notes: 'Marked as paid from invoice builder',
-        appliedTo: [{ invoiceNo: invNo, amount: all[finalIdx].paidAmount }],
-        createdAt: new Date().toISOString()
-      };
-      const allPays = getStoredPayments();
-      allPays.push(newPay);
-      saveStoredPayments(allPays);
-
-      showToast('✅ Invoice #' + invNo + ' marked as PAID', 'success');
+      try{
+        await Api.invoices.markPaid(invNo);
+        await Promise.all([refreshInvoices(), refreshPayments()]);
+        showToast('✅ Invoice #' + invNo + ' marked as PAID', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not mark invoice paid.', 'error');
+      }
     }
 
     // ======= WHATSAPP SHARE =======
@@ -6364,11 +5848,16 @@ table.list-table tbody td {
       `).join('');
     }
 
-    function deleteGatePass(id) {
+    async function deleteGatePass(id) {
       if (!confirm('Delete this gate pass record?')) return;
-      saveStoredGatePasses(getStoredGatePasses().filter(x => x.id !== id));
-      renderGPHistoryView();
-      showToast('Gate pass record deleted', 'success');
+      try{
+        await Api.gatePasses.delete(id);
+        await refreshGatePasses();
+        renderGPHistoryView();
+        showToast('Gate pass record deleted', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not delete gate pass.', 'error');
+      }
     }
 
     // ======= COMPANY SETTINGS =======
@@ -6384,10 +5873,10 @@ table.list-table tbody td {
     }
 
     function getCompanySettings() {
-      return _lsRead('company_settings', 'null') || getDefaultCompanySettings();
+      return _cache.companySettings || getDefaultCompanySettings();
     }
 
-    function saveCompanySettings(e) {
+    async function saveCompanySettings(e) {
       if (e) e.preventDefault();
       const s = {
         name:       document.getElementById('cs-name').value.trim(),
@@ -6402,9 +5891,13 @@ table.list-table tbody td {
         bankBranch: document.getElementById('cs-bank-branch').value.trim(),
         logoUrl:    document.getElementById('cs-logo-url').value.trim()
       };
-      cloudPush('company_settings', _lsWrite('company_settings', s));
-      applyCompanySettings(s);
-      showToast('✓ Company settings saved & applied to all invoices', 'success');
+      try{
+        _cache.companySettings = await Api.companySettings.update(s);
+        applyCompanySettings(_cache.companySettings);
+        showToast('✓ Company settings saved & applied to all invoices', 'success');
+      }catch(e){
+        showToast(e.message || 'Could not save company settings.', 'error');
+      }
     }
 
     function loadCompanySettingsForm() {
@@ -6496,12 +5989,12 @@ table.list-table tbody td {
     });
 
     // ======= QUOTATION MODULE =======
-    function getStoredQuotations(){ return _lsRead('quotations', '[]'); }
-    function saveStoredQuotations(arr){ cloudPush('quotations', _lsWrite('quotations', arr)); }
-
-    function getQuoteSeq(){ return parseInt(localStorage.getItem('quote_seq')||'0',10); }
-    async function consumeNextQuoteNo(){ const n = await consumeAtomicSeq('quote_seq', 0); return 'QT-'+String(n).padStart(3,'0'); }
-    function peekNextQuoteNo(){ return 'QT-'+String(getQuoteSeq()+1).padStart(3,'0'); }
+    // The real number is assigned server-side atomically as part of the create call (see
+    // api/quotations.js) — this is just a non-mutating preview for the read-only field.
+    async function peekNextQuoteNo(){
+      const { next } = await Api.sequences.peek('quote_seq');
+      return 'QT-'+String(next).padStart(3,'0');
+    }
 
     function populateQCustList(){
       const dl = document.getElementById('q-cust-list');
@@ -6593,8 +6086,8 @@ table.list-table tbody td {
       if(se('q-net-amount')) se('q-net-amount').textContent = '₹'+formatNum(net);
     }
 
-    function newQuotation(){
-      const no = peekNextQuoteNo();
+    async function newQuotation(){
+      const no = await peekNextQuoteNo();
       const today = _localDateStr();
       const validDate = new Date(); validDate.setDate(validDate.getDate()+30);
       const validStr = _localDateStr(validDate);
@@ -6635,19 +6128,24 @@ table.list-table tbody td {
       const q = serializeQuotation();
       if(!q.customer.name){ showToast('Enter customer name.','error'); return; }
       if(!q.quoteNo){ showToast('Quote number is missing.','error'); return; }
-      const all = getStoredQuotations();
-      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
-      const isNew = idx===-1;
-      if(isNew){
-        // Atomically consume the number and use it as the real quoteNo — the value
-        // previewed in the #q-no field isn't safe to persist as-is (see saveInvoiceToStorage).
-        q.quoteNo = await consumeNextQuoteNo();
-        const qNoField = document.getElementById('q-no');
-        if (qNoField) qNoField.value = q.quoteNo;
-        all.push(q);
-      } else all[idx]=q;
-      saveStoredQuotations(all);
-      showToast((isNew?'✓ Quotation saved: ':'✓ Quotation updated: ')+q.quoteNo,'success');
+      const isNew = !getStoredQuotations().some(x => x.quoteNo === q.quoteNo);
+
+      try{
+        let saved;
+        if(isNew){
+          // The server assigns the real quoteNo atomically as part of this call — the value
+          // previewed in the #q-no field isn't safe to persist as-is (see saveInvoiceToStorage).
+          saved = await Api.quotations.create(q);
+          const qNoField = document.getElementById('q-no');
+          if (qNoField) qNoField.value = saved.quoteNo;
+        } else {
+          saved = await Api.quotations.update(q.quoteNo, q);
+        }
+        await refreshQuotations();
+        showToast((isNew?'✓ Quotation saved: ':'✓ Quotation updated: ')+saved.quoteNo,'success');
+      }catch(e){
+        showToast(e.message || 'Could not save quotation.', 'error');
+      }
     }
 
     function loadQuotation(q){
@@ -6662,12 +6160,16 @@ table.list-table tbody td {
       calcQuoteTotals(); populateQuoteCompanyHeader(); updateQuoteDisplayFields();
     }
 
-    function deleteQuotation(quoteNo){
+    async function deleteQuotation(quoteNo){
       if(!confirm('Delete quotation '+quoteNo+'?')) return;
-      const all = getStoredQuotations().filter(q=>q.quoteNo!==quoteNo);
-      saveStoredQuotations(all);
-      renderQHistoryView();
-      showToast('Quotation deleted.','success');
+      try{
+        await Api.quotations.delete(quoteNo);
+        await refreshQuotations();
+        renderQHistoryView();
+        showToast('Quotation deleted.','success');
+      }catch(e){
+        showToast(e.message || 'Could not delete quotation.', 'error');
+      }
     }
 
     function printQuotation(){
@@ -6681,26 +6183,25 @@ table.list-table tbody td {
       if(sheet) sheet.classList.remove('active-print');
     }
 
-    function convertQuoteToInvoice(){
+    async function convertQuoteToInvoice(){
       const q = serializeQuotation();
       if(!q.customer.name){ showToast('Save the quotation first.','error'); return; }
-      // Populate invoice form with quote data
-      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
-      se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
-      se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
-      se('customerSite', q.customer.site);
-      // Mark the quotation as converted
-      const all = getStoredQuotations();
-      const idx = all.findIndex(x=>x.quoteNo===q.quoteNo);
-      if(idx!==-1){ all[idx].convertedToInvoice=peekNextInvoiceNo(); saveStoredQuotations(all); }
+
+      // Mark the quotation as converted. This is a cosmetic note — the invoice's real
+      // number is only assigned atomically when it's actually saved — so a peek is fine here.
+      try{
+        const nextNo = await peekNextInvoiceNo();
+        await Api.quotations.update(q.quoteNo, { ...q, convertedToInvoice: nextNo });
+        await refreshQuotations();
+      }catch(e){ console.warn('Could not mark quotation as converted:', e); }
+
       switchView('invoice');
-      newInvoice();
-      // Re-populate customer after newInvoice resets
-      setTimeout(()=>{
-        se('customerName', q.customer.name); se('customerPhone', q.customer.phone);
-        se('customerGSTIN', q.customer.gstin); se('customerAddress', q.customer.address);
-        se('customerSite', q.customer.site);
-      }, 50);
+      await newInvoice(); // awaited (not a setTimeout race) so the fields below aren't reset after we set them
+
+      const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v||''; };
+      se('custName', q.customer.name); se('custPhone', q.customer.phone);
+      se('custGSTIN', q.customer.gstin); se('custAddr', q.customer.address);
+      se('siteAddr', q.customer.site);
       showToast('✓ Quote data copied to Invoice Builder.','success');
     }
 
@@ -6741,12 +6242,12 @@ table.list-table tbody td {
     }
 
     // ======= PURCHASE ORDER MODULE =======
-    function getStoredPOs(){ return _lsRead('purchase_orders', '[]'); }
-    function saveStoredPOs(arr){ cloudPush('purchase_orders', _lsWrite('purchase_orders', arr)); }
-
-    function getPOSeq(){ return parseInt(localStorage.getItem('po_seq')||'0',10); }
-    async function consumeNextPONo(){ const n = await consumeAtomicSeq('po_seq', 0); return 'PO-'+String(n).padStart(3,'0'); }
-    function peekNextPONo(){ return 'PO-'+String(getPOSeq()+1).padStart(3,'0'); }
+    // The real number is assigned server-side atomically as part of the create call (see
+    // api/purchase-orders.js) — this is just a non-mutating preview for the read-only field.
+    async function peekNextPONo(){
+      const { next } = await Api.sequences.peek('po_seq');
+      return 'PO-'+String(next).padStart(3,'0');
+    }
 
     function populatePOCompanyHeader(){
       const cs = getCompanySettings();
@@ -6847,8 +6348,8 @@ table.list-table tbody td {
 7.  NIYAKRISH INDUSTRIES PRIVATE LIMITED reserves the right to cancel this order, in whole or in part, for delayed, short or non-conforming supply.
 8.  Any dispute arising out of this order is subject to the exclusive jurisdiction of the courts at Tumakuru, Karnataka.`;
 
-    function newPurchaseOrder(){
-      const no = peekNextPONo();
+    async function newPurchaseOrder(){
+      const no = await peekNextPONo();
       const today = _localDateStr();
       const se=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
       se('po-no',no); se('po-date',today); se('po-quote-ref',''); se('po-delivery-date','');
@@ -6889,19 +6390,24 @@ table.list-table tbody td {
       const po=serializePO();
       if(!po.vendor.name){ showToast('Enter vendor name.','error'); return; }
       if(!po.poNo){ showToast('PO number is missing.','error'); return; }
-      const all=getStoredPOs();
-      const idx=all.findIndex(x=>x.poNo===po.poNo);
-      const isNew=idx===-1;
-      if(isNew){
-        // Atomically consume the number and use it as the real poNo — the value
-        // previewed in the #po-no field isn't safe to persist as-is (see saveInvoiceToStorage).
-        po.poNo = await consumeNextPONo();
-        const poNoField = document.getElementById('po-no');
-        if (poNoField) poNoField.value = po.poNo;
-        all.push(po);
-      } else all[idx]=po;
-      saveStoredPOs(all);
-      showToast((isNew?'✓ PO saved: ':'✓ PO updated: ')+po.poNo,'success');
+      const isNew = !getStoredPOs().some(x => x.poNo === po.poNo);
+
+      try{
+        let saved;
+        if(isNew){
+          // The server assigns the real poNo atomically as part of this call — the value
+          // previewed in the #po-no field isn't safe to persist as-is (see saveInvoiceToStorage).
+          saved = await Api.purchaseOrders.create(po);
+          const poNoField = document.getElementById('po-no');
+          if (poNoField) poNoField.value = saved.poNo;
+        } else {
+          saved = await Api.purchaseOrders.update(po.poNo, po);
+        }
+        await refreshPOs();
+        showToast((isNew?'✓ PO saved: ':'✓ PO updated: ')+saved.poNo,'success');
+      }catch(e){
+        showToast(e.message || 'Could not save purchase order.', 'error');
+      }
     }
 
     function loadPurchaseOrder(po){
@@ -6917,12 +6423,16 @@ table.list-table tbody td {
       calcPOTotals(); populatePOCompanyHeader(); updatePODisplayFields();
     }
 
-    function deletePurchaseOrder(poNo){
+    async function deletePurchaseOrder(poNo){
       if(!confirm('Delete PO '+poNo+'?')) return;
-      const all=getStoredPOs().filter(p=>p.poNo!==poNo);
-      saveStoredPOs(all);
-      renderPOHistoryView();
-      showToast('Purchase Order deleted.','success');
+      try{
+        await Api.purchaseOrders.delete(poNo);
+        await refreshPOs();
+        renderPOHistoryView();
+        showToast('Purchase Order deleted.','success');
+      }catch(e){
+        showToast(e.message || 'Could not delete purchase order.', 'error');
+      }
     }
 
     function printPurchaseOrder(){
@@ -6973,28 +6483,6 @@ table.list-table tbody td {
 
     // ======= Init & Window Load =======
     async function init(){
-      // 1. Init Firebase first so we can pull credentials before showing login
-      initFirebase();
-
-      // 2. Sync credentials from cloud → all devices share the same password
-      if(db){
-        try{
-          const creds = await cloudPull('app_credentials');
-          if(creds){
-            // Cloud credentials take priority (latest password change wins)
-            localStorage.setItem('app_credentials', creds);
-          }
-          // If cloud has no credentials yet, keep whatever is in localStorage (or default applies at login)
-        }catch(e){
-          // Firebase read blocked (security rules) — will warn user after login via loadFromCloud
-          console.warn('Could not pull credentials from cloud:', e);
-        }
-      }
-      // Offline: keep stored local credentials as-is so custom passwords still work
-
-      // 3. Check if already authenticated this session
-      checkAuth();
-
       const invoiceNoInput = document.getElementById('invoiceNo');
       invoiceNoInput.readOnly = true; // start in AUTO mode
 
@@ -7008,12 +6496,8 @@ table.list-table tbody td {
       // Mark as manually set when user edits it
       document.getElementById('invoiceDate').addEventListener('change', function(){ this.dataset.manuallySet = '1'; });
 
-      applyCompanySettings(getCompanySettings());
       setupRowListeners(document);
       recalcAll();
-      updateDashboardMetrics();
-      renderDashboardCharts();
-      loadAutofills();
       buildRows();
       wireFields();
 
@@ -7027,21 +6511,20 @@ table.list-table tbody td {
         if (window.innerWidth > 1024) closeSidebar();
       });
 
-      // Pull latest cloud data (Firebase already inited above)
-      if(db){
-        await loadFromCloud(false);
+      // Check for an existing valid session (e.g. the tab was refreshed while logged in) —
+      // this is a real server check now, not a client-side flag.
+      const authed = await checkAuth();
+      if(authed){
+        await loadAllData();
         applyCompanySettings(getCompanySettings());
         updateDashboardMetrics();
         renderDashboardCharts();
         loadAutofills();
         refreshActiveView();
-        // Start real-time listeners so any device that saves data is instantly
-        // reflected here without needing a page refresh
-        startRealtimeSync();
+        invoiceNoInput.value = await peekNextInvoiceNo();
+      } else {
+        applyCompanySettings(getDefaultCompanySettings());
       }
-
-      // Set invoice number after possible cloud pull (seq may have updated)
-      invoiceNoInput.value = peekNextInvoiceNo();
     }
 
     // Re-renders whichever view is currently active (used after cloud data pull)

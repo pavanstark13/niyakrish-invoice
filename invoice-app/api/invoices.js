@@ -66,24 +66,10 @@ async function createInvoice(req, res) {
       );
     }
 
-    // Auto-register the customer if this name isn't already on file.
-    const { rows: existing } = await client.query('SELECT id FROM customers WHERE lower(name) = lower($1)', [cust.name]);
-    if (!existing.length) {
-      const { rows: [newCust] } = await client.query(
-        `INSERT INTO customers (name, phone, gstin, address, site, pincode, auto_created)
-         VALUES ($1,$2,$3,$4,$5,$6, true) RETURNING id`,
-        [cust.name, cust.phone || '', cust.gstin || '', cust.address || '', cust.site || '', cust.pin || '']
-      );
-      for (const r of rows) {
-        if (!r.grade || !(r.rate > 0)) continue;
-        await client.query(
-          `INSERT INTO customer_pricing (customer_id, grade, rate, product_name, hsn_code, hsn_desc)
-           VALUES ($1,$2,$3,$4,$5,$6)`,
-          [newCust.id, r.grade, r.rate, product.productName || 'Ready Mix Concrete', product.hsnCode || '38245010', product.hsnDesc || 'READY MIX CONCRETE']
-        );
-      }
-    }
-
+    // Customer auto-registration/pricing-sync is handled client-side (autoSaveCustomerFromInvoice
+    // in index.html), called after every invoice save — both create and update — so it lives
+    // in one place rather than duplicated here (and racing the client's own create call on
+    // the unique customer-name index).
     return invoiceRowToJson(inv, rows.map((r, i) => ({ ...r, position: i, disc_pct: r.disc_pct || 0, cgst_pct: r.cgst_pct ?? 9, sgst_pct: r.sgst_pct ?? 9 })));
   });
 
