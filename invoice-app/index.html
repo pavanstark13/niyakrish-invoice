@@ -2310,11 +2310,16 @@ table.list-table tbody td {
           <button onclick="exportPurchaseDetailsCSV()" style="padding:5px 14px; font-size:12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600; height:30px;">📊 Export CSV</button>
         </div>
         <div class="card no-print" style="padding:12px; margin-bottom:12px; display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;">
-          <div>
+          <div style="position:relative;">
             <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Product / Grade</label>
-            <select id="purchases-grade-filter" style="min-width:170px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:13px;" onchange="loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value)">
-              <option value="">All Products</option>
-            </select>
+            <button type="button" id="purchases-grade-filter-btn" onclick="toggleGradeFilterDropdown(event)" style="min-width:170px; max-width:220px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:13px; background:#fff; text-align:left; cursor:pointer; height:30px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">All Products ▾</button>
+            <div id="purchases-grade-filter-dropdown" style="display:none; position:absolute; top:100%; left:0; z-index:50; background:#fff; border:1px solid #d1d5db; border-radius:4px; box-shadow:0 4px 14px rgba(0,0,0,.15); padding:8px; margin-top:4px; min-width:210px; max-height:240px; overflow-y:auto;">
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:11px; border-bottom:1px solid #eee; padding-bottom:6px;">
+                <a href="javascript:void(0)" onclick="setAllGradeFilters(true)" style="color:#4f46e5;">Select All</a>
+                <a href="javascript:void(0)" onclick="setAllGradeFilters(false)" style="color:#6b7280;">Clear</a>
+              </div>
+              <div id="purchases-grade-filter-options" style="font-size:12px;"></div>
+            </div>
           </div>
           <div>
             <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Search</label>
@@ -2324,7 +2329,7 @@ table.list-table tbody td {
             <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Min Qty</label>
             <input type="number" id="purchases-min-qty" placeholder="0" style="width:90px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" oninput="loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value)">
           </div>
-          <button onclick="document.getElementById('purchases-grade-filter').value='';document.getElementById('purchases-search').value='';document.getElementById('purchases-min-qty').value='';loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value);" style="padding:5px 12px; font-size:11px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; height:30px;">✕ Clear</button>
+          <button onclick="setAllGradeFilters(false); document.getElementById('purchases-search').value='';document.getElementById('purchases-min-qty').value='';loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select').value);" style="padding:5px 12px; font-size:11px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; height:30px;">✕ Clear</button>
         </div>
         <div class="card" style="padding:16px;">
           <div id="purchases-summary" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:14px; font-size:13px;">
@@ -4378,30 +4383,96 @@ table.list-table tbody td {
       return out;
     }
 
-    // Rebuilds the Product/Grade dropdown from whatever grades are actually present in the
-    // customer+date-filtered rows (before the grade/search/qty filters below are applied to
-    // them) — so the option list always reflects what's actually available to filter down to,
-    // and doesn't shrink to nothing once a grade is already selected. Preserves the current
-    // selection if it's still one of the available grades.
+    // Which grades are checked in the Product/Grade filter — empty means "All Products" (no
+    // filtering), matching how the old single-select's "" option worked. A Set rather than a
+    // single value is what actually makes multiple grades selectable at once.
+    let _purchaseSelectedGrades = new Set();
+
+    function updateGradeFilterButtonLabel() {
+      const btn = document.getElementById('purchases-grade-filter-btn');
+      if (!btn) return;
+      const n = _purchaseSelectedGrades.size;
+      btn.textContent = (n === 0 ? 'All Products' : n === 1 ? Array.from(_purchaseSelectedGrades)[0] : n + ' products selected') + ' ▾';
+    }
+
+    function toggleGradeFilterDropdown(event) {
+      if (event) event.stopPropagation();
+      const dd = document.getElementById('purchases-grade-filter-dropdown');
+      if (dd) dd.style.display = (dd.style.display === 'none' || !dd.style.display) ? 'block' : 'none';
+    }
+
+    // Closes the grade filter dropdown on any click outside it — registered once, guarded so
+    // it's harmless if this script block runs more than once.
+    if (!window._gradeFilterOutsideClickBound) {
+      window._gradeFilterOutsideClickBound = true;
+      document.addEventListener('click', function(e) {
+        const dd = document.getElementById('purchases-grade-filter-dropdown');
+        const btn = document.getElementById('purchases-grade-filter-btn');
+        if (dd && dd.style.display === 'block' && !dd.contains(e.target) && e.target !== btn) {
+          dd.style.display = 'none';
+        }
+      });
+    }
+
+    function onGradeFilterCheckboxChange(grade, checked) {
+      if (checked) _purchaseSelectedGrades.add(grade);
+      else _purchaseSelectedGrades.delete(grade);
+      updateGradeFilterButtonLabel();
+      loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select')?.value || '');
+    }
+
+    // selectAll=true checks every currently-available grade; false clears the selection
+    // entirely — both end up re-rendering via loadPurchaseDetailsForCustomer.
+    function setAllGradeFilters(selectAll) {
+      if (selectAll) {
+        document.querySelectorAll('#purchases-grade-filter-options input[type="checkbox"]').forEach(cb => {
+          cb.checked = true;
+          _purchaseSelectedGrades.add(cb.value);
+        });
+      } else {
+        _purchaseSelectedGrades.clear();
+        document.querySelectorAll('#purchases-grade-filter-options input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+      }
+      updateGradeFilterButtonLabel();
+      loadPurchaseDetailsForCustomer(document.getElementById('ledger-customer-select')?.value || '');
+    }
+
+    // Rebuilds the Product/Grade checkbox list from whatever grades are actually present in
+    // the customer+date-filtered rows (before the grade/search/qty filters below are applied
+    // to them) — so the option list always reflects what's actually available to filter down
+    // to, and doesn't shrink to nothing once grades are already checked. Grades no longer
+    // present (e.g. after switching customer) are dropped from the selection.
     function populatePurchaseGradeFilter(rows) {
-      const select = document.getElementById('purchases-grade-filter');
-      if (!select) return;
-      const current = select.value;
+      const optionsEl = document.getElementById('purchases-grade-filter-options');
+      if (!optionsEl) return;
       const grades = Array.from(new Set(rows.map(r => r.grade))).sort((a, b) => a.localeCompare(b));
-      select.innerHTML = '<option value="">All Products</option>' +
-        grades.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
-      if (grades.includes(current)) select.value = current;
+      const availableSet = new Set(grades);
+      Array.from(_purchaseSelectedGrades).forEach(g => { if (!availableSet.has(g)) _purchaseSelectedGrades.delete(g); });
+
+      optionsEl.innerHTML = grades.length
+        ? grades.map(g => {
+            const id = 'grade-cb-' + g.replace(/[^a-zA-Z0-9]/g, '_');
+            const checked = _purchaseSelectedGrades.has(g) ? 'checked' : '';
+            return `
+              <label for="${id}" style="display:flex; align-items:center; gap:6px; padding:3px 0; cursor:pointer;">
+                <input type="checkbox" id="${id}" value="${escapeHtml(g)}" ${checked} onchange="onGradeFilterCheckboxChange(this.value, this.checked)">
+                <span>${escapeHtml(g)}</span>
+              </label>
+            `;
+          }).join('')
+        : '<div style="color:#9ca3af; padding:4px 0;">No products for this customer/date range.</div>';
+
+      updateGradeFilterButtonLabel();
     }
 
     // Applies the tab-local Product/Grade, Search, and Min Qty filters on top of the shared
     // customer+date range filter already applied by getFilteredPurchaseRows().
     function applyPurchaseDetailFilters(rows) {
-      const grade = document.getElementById('purchases-grade-filter')?.value || '';
       const search = (document.getElementById('purchases-search')?.value || '').trim().toLowerCase();
       const minQty = Number(document.getElementById('purchases-min-qty')?.value) || 0;
 
       return rows.filter(r => {
-        if (grade && r.grade !== grade) return false;
+        if (_purchaseSelectedGrades.size && !_purchaseSelectedGrades.has(r.grade)) return false;
         if (minQty && r.qty < minQty) return false;
         if (search) {
           const hay = (r.grade + ' ' + r.invoiceNo).toLowerCase();
