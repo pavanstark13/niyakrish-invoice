@@ -2464,6 +2464,11 @@ table.list-table tbody td {
             </thead>
             <tbody id="hist-tbody"></tbody>
           </table>
+          <div style="display:flex; justify-content:center; align-items:center; gap:12px; padding:12px; font-size:12px;">
+            <button class="btn secondary" style="padding:4px 10px;" onclick="_goToPage('history', -1, renderHistoryView)">‹ Prev</button>
+            <span id="hist-page-indicator" style="color:var(--text-muted);">Page 1</span>
+            <button class="btn secondary" style="padding:4px 10px;" onclick="_goToPage('history', 1, renderHistoryView)">Next ›</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3196,6 +3201,11 @@ table.list-table tbody td {
           </thead>
           <tbody id="invoicesTbody"></tbody>
         </table>
+        <div style="display:flex; justify-content:center; align-items:center; gap:12px; padding:12px; font-size:12px;">
+          <button class="btn secondary" style="padding:4px 10px;" onclick="_goToPage('invoicesModal', -1, populateInvoicesList)">‹ Prev</button>
+          <span id="invoicesModal-page-indicator" style="color:var(--text-muted);">Page 1</span>
+          <button class="btn secondary" style="padding:4px 10px;" onclick="_goToPage('invoicesModal', 1, populateInvoicesList)">Next ›</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3433,6 +3443,32 @@ table.list-table tbody td {
         catch (e) { /* deleted or renumbered elsewhere in the meantime — safe to ignore */ }
       }));
     }
+    // Minimal client-side pagination — keeps the rendered DOM size constant regardless of how
+    // large a list grows. Rendering every filtered row into the DOM on every keystroke (the
+    // previous behavior of both the History view and the "All Invoices" modal) is what was
+    // actually making the whole app feel laggy with 1,600+ invoices: browsers are slow at
+    // building/reflowing thousands of <tr> elements repeatedly, far more than the JS-side
+    // filtering itself costs. `key` namespaces the page index per list (e.g. 'history',
+    // 'invoicesModal') so unrelated lists don't share position.
+    const _pageState = {};
+    function _paginate(key, fullList, pageSize = 50) {
+      const totalPages = Math.max(1, Math.ceil(fullList.length / pageSize));
+      let idx = _pageState[key] || 0;
+      if (idx >= totalPages) idx = totalPages - 1;
+      if (idx < 0) idx = 0;
+      _pageState[key] = idx;
+      const start = idx * pageSize;
+      return { pageRows: fullList.slice(start, start + pageSize), pageIndex: idx, totalPages, total: fullList.length };
+    }
+    // Called by a list's own Prev/Next buttons — filter-input handlers should keep calling
+    // the render function directly (with no keepPage arg), which resets to page 1, since
+    // changing the filter should show the new first page rather than an old page position
+    // that may no longer make sense for the new result set.
+    function _goToPage(key, delta, renderFn) {
+      _pageState[key] = (_pageState[key] || 0) + delta;
+      renderFn(true);
+    }
+
     async function refreshCustomers()  { _cache.customers = await Api.customers.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
     async function refreshPayments()   { _cache.payments = await Api.payments.list(); if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
     async function refreshGatePasses() { _cache.gatepasses = await Api.gatePasses.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
@@ -4787,7 +4823,8 @@ table.list-table tbody td {
     }
 
     // ======= INVOICE HISTORY VIEW =======
-    function renderHistoryView() {
+    function renderHistoryView(keepPage) {
+      if (!keepPage) _pageState.history = 0;
       // Populate customer dropdown
       const histCust = document.getElementById('hist-cust');
       if (histCust && histCust.options.length <= 1) {
@@ -4847,10 +4884,16 @@ table.list-table tbody td {
 
       if (data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted);">No invoices match the current filters.</td></tr>`;
+        const pageIndEl0 = document.getElementById('hist-page-indicator');
+        if (pageIndEl0) pageIndEl0.textContent = 'Page 0 of 0';
         return;
       }
 
-      tbody.innerHTML = data.map(inv => {
+      const { pageRows, pageIndex, totalPages, total } = _paginate('history', data, 50);
+      const pageIndEl = document.getElementById('hist-page-indicator');
+      if (pageIndEl) pageIndEl.textContent = `Page ${pageIndex + 1} of ${totalPages} (${total} invoices)`;
+
+      tbody.innerHTML = pageRows.map(inv => {
         const net = inv.totals?.netAmount || 0;
         const paid = inv.paidAmount || 0;
         const due = net - paid;
@@ -5629,7 +5672,8 @@ table.list-table tbody td {
       populateInvoicesList();
     }
 
-    function populateInvoicesList() {
+    function populateInvoicesList(keepPage) {
+      if (!keepPage) _pageState.invoicesModal = 0;
       const tbody = document.getElementById('invoicesTbody');
       if (!tbody) return;
 
@@ -5670,7 +5714,11 @@ table.list-table tbody td {
       // Sort by Invoice Number chronologically
       data.sort((a, b) => String(a.invoiceNo || "").localeCompare(String(b.invoiceNo || "")));
 
-      tbody.innerHTML = data.map(inv => {
+      const { pageRows, pageIndex, totalPages, total } = _paginate('invoicesModal', data, 50);
+      const modalPageIndEl = document.getElementById('invoicesModal-page-indicator');
+      if (modalPageIndEl) modalPageIndEl.textContent = total ? `Page ${pageIndex + 1} of ${totalPages} (${total} invoices)` : 'Page 0 of 0';
+
+      tbody.innerHTML = pageRows.map(inv => {
         // Set up nice color tag for payment status
         let statusBadge = `<span style="background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px;">Unpaid</span>`;
         if (inv.status === 'Paid') {
