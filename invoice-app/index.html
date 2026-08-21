@@ -4331,7 +4331,7 @@ table.list-table tbody td {
           <td style="font-weight:700;color:var(--accent);">${inv.invoiceNo || ''}</td>
           <td class="hide-mobile" style="white-space:nowrap;">${inv.invoiceDate ? inv.invoiceDate.slice(0,10) : '-'}</td>
           <td style="font-weight:600;">${escapeHtml(inv.customer?.name || '-')}</td>
-          <td class="hide-mobile" style="color:var(--text-muted);">${inv.poNumber || '-'}</td>
+          <td class="hide-mobile" style="color:var(--text-muted);">${escapeHtml(inv.poNumber || '-')}</td>
           <td style="text-align:right;font-weight:700;">₹${formatNum(net)}</td>
           <td class="hide-mobile" style="text-align:right;color:#10b981;font-weight:600;">₹${formatNum(paid)}</td>
           <td style="text-align:right;font-weight:700;color:${due > 0 ? '#ef4444' : '#000'};">₹${formatNum(due)}</td>
