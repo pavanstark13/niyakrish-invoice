@@ -4252,10 +4252,14 @@ table.list-table tbody td {
       
       const ledgerPanel = document.getElementById('view-ledger');
       ledgerPanel.classList.add('active-print');
-      
-      window.print();
-      
-      ledgerPanel.classList.remove('active-print');
+
+      // A ledger can legitimately span multiple pages (it's a transaction list, not a
+      // fixed-size document like an invoice), so no page-fit here — just the same reliable
+      // beforeprint/afterprint timing as the other print paths.
+      runPrintJob(
+        function(){},
+        function(){ ledgerPanel.classList.remove('active-print'); }
+      );
     }
 
     // ======= INVOICE HISTORY VIEW =======
@@ -5171,14 +5175,15 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       sheet.classList.add('active-print');
 
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() {
+      runPrintJob(
+        function(){ fitSheetToOnePage(sheet); },
+        function(){
+          resetSheetFit(sheet);
           panel.classList.remove('active-print');
           sheet.classList.remove('active-print');
           // NOTE: Sequence is NOT incremented here. Use "New Invoice" to start the next one.
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     async function newInvoice(){
@@ -5239,6 +5244,56 @@ table.list-table tbody td {
       catch(e){ console.warn('Skipping save:', e); }
     }
 
+    // Shrinks a .sheet element to fit within one A4 print page if its natural content height
+    // would otherwise overflow onto a second page — matches the @page rule below (A4 portrait,
+    // 8mm/10mm margins). A fixed CSS trim can't cover every invoice: row count, address length
+    // etc. all vary, so this measures the actual rendered height and only scales down exactly
+    // as much as needed. No-ops for anything that already fits.
+    //
+    // Must run while the browser's print stylesheet is actually active (font sizes, padding
+    // etc. in the @media print block are different from screen), which only reliably happens
+    // during the 'beforeprint' event — measuring any earlier (e.g. in a setTimeout just before
+    // calling window.print()) reads the screen-mode layout instead and over/under-shrinks.
+    function fitSheetToOnePage(sheetEl){
+      sheetEl.style.transform = '';
+      sheetEl.style.transformOrigin = '';
+
+      const MM_TO_PX = 96 / 25.4;
+      const pageContentHeightPx = (297 - 16) * MM_TO_PX; // A4 height minus 8mm top+bottom @page margin
+
+      const actualHeight = sheetEl.scrollHeight;
+      if (actualHeight > pageContentHeightPx) {
+        const scale = pageContentHeightPx / actualHeight;
+        sheetEl.style.transform = `scale(${scale})`;
+        sheetEl.style.transformOrigin = 'top left';
+      }
+    }
+
+    function resetSheetFit(sheetEl){
+      sheetEl.style.transform = '';
+      sheetEl.style.transformOrigin = '';
+    }
+
+    // Runs a print job through 'beforeprint'/'afterprint' rather than a fixed setTimeout after
+    // window.print(): the print dialog (especially a mobile "Save as PDF" share sheet) can
+    // stay open far longer than any fixed delay, and cleaning up — un-toggling active-print,
+    // clearing the fit-to-page transform — before it's actually done risks the same "looks
+    // broken on mobile" failure mode this whole print path was rewritten to get away from.
+    // `fit` does the page-fit measurement/scale (called while print CSS is active); `cleanup`
+    // reverses both that and the active-print class toggles once the print UI has closed.
+    function runPrintJob(fit, cleanup){
+      window.onbeforeprint = fit;
+      window.onafterprint = function(){
+        cleanup();
+        window.onbeforeprint = null;
+        window.onafterprint = null;
+      };
+      // Still need one beat before print() itself so the active-print class change (screen-mode
+      // visibility) has been painted — beforeprint/afterprint only fix the *measurement* and
+      // *cleanup* timing, not this initial "make the element printable at all" step.
+      setTimeout(function(){ window.print(); }, 100);
+    }
+
     function ensureCopyLabel(type){
       const sheet = document.getElementById('sheet');
       let badge = document.getElementById('copyLabel');
@@ -5263,14 +5318,15 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       sheet.classList.add('active-print');
 
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() {
+      runPrintJob(
+        function(){ fitSheetToOnePage(sheet); },
+        function(){
+          resetSheetFit(sheet);
           if(badge) badge.style.display = 'none';
           panel.classList.remove('active-print');
           sheet.classList.remove('active-print');
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     function cloneSheetWithValuesAndLabel(type){
@@ -5329,13 +5385,13 @@ table.list-table tbody td {
 
       container.classList.add('active-print');
 
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() {
+      runPrintJob(
+        function(){ container.querySelectorAll('.sheet').forEach(fitSheetToOnePage); },
+        function(){
           container.classList.remove('active-print');
           container.innerHTML = '';
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     async function duplicateCurrentInvoice(){
@@ -5652,13 +5708,13 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       wrapper.classList.add('active-print');
 
-      setTimeout(function () {
-        window.print();
-        setTimeout(function () {
+      runPrintJob(
+        function(){},
+        function(){
           panel.classList.remove('active-print');
           wrapper.classList.remove('active-print');
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     // Helper functions
@@ -6133,9 +6189,15 @@ table.list-table tbody td {
       const sheet = document.getElementById('quote-sheet');
       if(panel) panel.classList.add('active-print');
       if(sheet) sheet.classList.add('active-print');
-      window.print();
-      if(panel) panel.classList.remove('active-print');
-      if(sheet) sheet.classList.remove('active-print');
+
+      runPrintJob(
+        function(){ if(sheet) fitSheetToOnePage(sheet); },
+        function(){
+          if(sheet) resetSheetFit(sheet);
+          if(panel) panel.classList.remove('active-print');
+          if(sheet) sheet.classList.remove('active-print');
+        }
+      );
     }
 
     async function convertQuoteToInvoice(){
@@ -6396,9 +6458,15 @@ table.list-table tbody td {
       const sheet = document.getElementById('po-sheet');
       if(panel) panel.classList.add('active-print');
       if(sheet) sheet.classList.add('active-print');
-      window.print();
-      if(panel) panel.classList.remove('active-print');
-      if(sheet) sheet.classList.remove('active-print');
+
+      runPrintJob(
+        function(){ if(sheet) fitSheetToOnePage(sheet); },
+        function(){
+          if(sheet) resetSheetFit(sheet);
+          if(panel) panel.classList.remove('active-print');
+          if(sheet) sheet.classList.remove('active-print');
+        }
+      );
     }
 
     function renderPOHistoryView(){
