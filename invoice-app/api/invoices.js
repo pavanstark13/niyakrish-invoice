@@ -70,7 +70,13 @@ async function createInvoice(req, res) {
     // in index.html), called after every invoice save — both create and update — so it lives
     // in one place rather than duplicated here (and racing the client's own create call on
     // the unique customer-name index).
-    return invoiceRowToJson(inv, rows.map((r, i) => ({ ...r, position: i, disc_pct: r.disc_pct || 0, cgst_pct: r.cgst_pct ?? 9, sgst_pct: r.sgst_pct ?? 9 })));
+    //
+    // Re-select the rows just inserted rather than reusing the request body: the DB has
+    // already applied the real defaults (cgst_pct/sgst_pct etc.) for any field the client
+    // omitted, so this is what actually got persisted — not a second, possibly-inconsistent
+    // (and previously NaN-prone) copy of them.
+    const { rows: savedRows } = await client.query('SELECT * FROM invoice_rows WHERE invoice_id = $1 ORDER BY position', [inv.id]);
+    return invoiceRowToJson(inv, savedRows);
   });
 
   res.status(201).json(result);
@@ -121,7 +127,8 @@ async function updateInvoice(invoiceNo, req, res) {
         [inv.id, i, r.grade || '', r.qty || 0, r.rate || 0, r.disc_pct || 0, r.cgst_pct ?? 9, r.sgst_pct ?? 9]
       );
     }
-    return invoiceRowToJson(inv, rows);
+    const { rows: savedRows } = await client.query('SELECT * FROM invoice_rows WHERE invoice_id = $1 ORDER BY position', [inv.id]);
+    return invoiceRowToJson(inv, savedRows);
   });
 
   if (!result) return res.status(404).json({ error: 'Invoice not found' });

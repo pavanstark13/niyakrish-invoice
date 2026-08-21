@@ -52,7 +52,10 @@ async function createQuotation(req, res) {
         [q.id, i, r.description || '', r.qty || 0, r.unit || '', r.rate || 0, r.disc_pct || 0, r.gst_pct ?? 18]
       );
     }
-    return quotationRowToJson(q, rows);
+    // Re-select the just-inserted rows rather than the request body — the DB has already
+    // applied real defaults (gst_pct etc.) for anything the client omitted.
+    const { rows: savedRows } = await client.query('SELECT * FROM quotation_rows WHERE quotation_id = $1 ORDER BY position', [q.id]);
+    return quotationRowToJson(q, savedRows);
   });
 
   res.status(201).json(result);
@@ -91,7 +94,8 @@ async function updateQuotation(quoteNo, req, res) {
         [q.id, i, r.description || '', r.qty || 0, r.unit || '', r.rate || 0, r.disc_pct || 0, r.gst_pct ?? 18]
       );
     }
-    return quotationRowToJson(q, rows);
+    const { rows: savedRows } = await client.query('SELECT * FROM quotation_rows WHERE quotation_id = $1 ORDER BY position', [q.id]);
+    return quotationRowToJson(q, savedRows);
   });
 
   if (!result) return res.status(404).json({ error: 'Quotation not found' });

@@ -49,7 +49,10 @@ async function createPO(req, res) {
         [po.id, i, r.description || '', r.hsn || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
       );
     }
-    return poRowToJson(po, rows);
+    // Re-select the just-inserted rows rather than the request body — the DB has already
+    // applied real defaults (gst_pct etc.) for anything the client omitted.
+    const { rows: savedRows } = await client.query('SELECT * FROM po_rows WHERE po_id = $1 ORDER BY position', [po.id]);
+    return poRowToJson(po, savedRows);
   });
 
   res.status(201).json(result);
@@ -85,7 +88,8 @@ async function updatePO(poNo, req, res) {
         [po.id, i, r.description || '', r.hsn || '', r.qty || 0, r.unit || '', r.rate || 0, r.gst_pct ?? 18]
       );
     }
-    return poRowToJson(po, rows);
+    const { rows: savedRows } = await client.query('SELECT * FROM po_rows WHERE po_id = $1 ORDER BY position', [po.id]);
+    return poRowToJson(po, savedRows);
   });
 
   if (!result) return res.status(404).json({ error: 'Purchase order not found' });

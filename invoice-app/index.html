@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Niyakrish Industries – Enterprise Control Center</title>
@@ -662,6 +661,12 @@
         border: none !important;
         margin: 0 !important;
         padding: 0 !important;
+      }
+
+      #multiCopyPrint.active-print .sheet {
+        margin: 8mm auto !important;
+        display: block !important;
+        box-shadow: none !important;
       }
 
       /* Hide headers, footers, side actions */
@@ -1445,8 +1450,11 @@ table.list-table tbody td {
 
   <!-- ── SIDEBAR BACKDROP OVERLAY ── -->
   <div class="sidebar-backdrop no-print" id="sidebar-backdrop" onclick="closeSidebar()"></div>
-  <iframe id="printFrame" style="position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;"></iframe>
   <iframe id="hidden_iframe" name="hidden_iframe" style="display:none;"></iframe>
+  <!-- Populated by printAllCopies() and printed via window.print() on the main document —
+       not a hidden iframe, which mobile browsers (iOS Safari, Android Chrome) frequently
+       render as a blank page when asked to print a zero-size/invisible frame. -->
+  <div id="multiCopyPrint" style="display:none;"></div>
 
   <!-- ── SIDEBAR NAVIGATION ── -->
   <div class="sidebar no-print">
@@ -1657,8 +1665,8 @@ table.list-table tbody td {
           <button class="btn" onclick="printAllCopies()">Print All Copies</button>
           <button class="btn secondary" onclick="addRow()">+ Add Item</button>
           <button class="btn secondary danger" onclick="removeSelected()">- Remove Selected</button>
-          <button class="btn secondary" onclick="savePDF()">Save PDF</button>
-          <button class="btn secondary" onclick="saveSeparateCopiesPDF()">Save Copies PDF</button>
+          <button class="btn secondary" onclick="printInvoice()">Save PDF</button>
+          <button class="btn secondary" onclick="printAllCopies()">Save Copies PDF</button>
           <button class="btn secondary" onclick="openSummary()">Summary</button>
           <button class="btn secondary" onclick="duplicateCurrentInvoice()">Duplicate</button>
           <button class="btn secondary" onclick="switchView('history')">📋 All Invoices</button>
@@ -2223,22 +2231,30 @@ table.list-table tbody td {
       <div class="card no-print" style="padding:12px; margin-bottom:12px; display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap;">
         <div>
           <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">Client Account</label>
-          <select id="ledger-customer-select" style="min-width:220px; max-width:300px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:13px;" onchange="loadLedgerForCustomer(this.value)">
+          <select id="ledger-customer-select" style="min-width:220px; max-width:300px; padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:13px;" onchange="refreshActiveLedgerTab()">
             <option value="">-- Choose customer --</option>
           </select>
         </div>
         <div>
           <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">From Date</label>
-          <input type="date" id="ledger-date-from" style="padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" onchange="loadLedgerForCustomer(document.getElementById('ledger-customer-select').value)">
+          <input type="date" id="ledger-date-from" style="padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" onchange="refreshActiveLedgerTab()">
         </div>
         <div>
           <label style="font-size:11px; display:block; margin-bottom:3px; color:#6b7280;">To Date</label>
-          <input type="date" id="ledger-date-to" style="padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" onchange="loadLedgerForCustomer(document.getElementById('ledger-customer-select').value)">
+          <input type="date" id="ledger-date-to" style="padding:5px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:12px;" onchange="refreshActiveLedgerTab()">
         </div>
-        <button onclick="document.getElementById('ledger-date-from').value='';document.getElementById('ledger-date-to').value='';loadLedgerForCustomer(document.getElementById('ledger-customer-select').value);" style="padding:5px 12px; font-size:11px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; height:30px;">✕ Clear</button>
-        <button onclick="exportLedgerCSV()" style="padding:5px 14px; font-size:12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600; height:30px;">📊 Export CSV</button>
+        <button onclick="document.getElementById('ledger-date-from').value='';document.getElementById('ledger-date-to').value='';refreshActiveLedgerTab();" style="padding:5px 12px; font-size:11px; border:1px solid #d1d5db; border-radius:4px; cursor:pointer; background:#fff; height:30px;">✕ Clear</button>
       </div>
 
+      <!-- Ledger Tabs -->
+      <div class="no-print" style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+        <button id="ledger-tab-btn-statement" class="btn accent" style="padding:7px 14px; font-size:12px;" onclick="switchLedgerTab('statement')">📄 Account Statement</button>
+        <button id="ledger-tab-btn-purchases" class="btn secondary" style="padding:7px 14px; font-size:12px;" onclick="switchLedgerTab('purchases')">🧾 Purchase Details</button>
+        <button id="ledger-tab-btn-products" class="btn secondary" style="padding:7px 14px; font-size:12px;" onclick="switchLedgerTab('products')">📦 Product Summary</button>
+      </div>
+
+      <!-- Tab: Account Statement (existing behavior, unchanged) -->
+      <div id="ledger-tab-statement" class="ledger-tab-panel">
       <!-- Ledger Print Area Container -->
       <div id="ledger-print-area" class="card" style="min-height: 400px; color:#000;">
         <div style="text-align:center; margin-bottom:16px;">
@@ -2284,6 +2300,62 @@ table.list-table tbody td {
           </tbody>
         </table>
       </div>
+      </div>
+      <!-- /Tab: Account Statement -->
+
+      <!-- Tab: Purchase Details — date-wise itemized product purchase log for the selected customer -->
+      <div id="ledger-tab-purchases" class="ledger-tab-panel" style="display:none;">
+        <div class="card no-print" style="padding:12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="font-size:12px; color:#6b7280;">Itemized product purchases for the selected customer, date-wise.</div>
+          <button onclick="exportPurchaseDetailsCSV()" style="padding:5px 14px; font-size:12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600; height:30px;">📊 Export CSV</button>
+        </div>
+        <div class="card" style="padding:16px;">
+          <div id="purchases-summary" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:14px; font-size:13px;">
+            <div>Total Purchases: <b id="purchases-summary-count">0</b></div>
+            <div>Total Amount: <b id="purchases-summary-amount">₹0.00</b></div>
+          </div>
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr style="border-top:2px solid #000; border-bottom:2px solid #000; background:#f1f5f9;">
+                <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Date</th>
+                <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Invoice #</th>
+                <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Product / Grade</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Qty</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Rate</th>
+                <th style="padding:6px; text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="purchases-tbody">
+              <tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- /Tab: Purchase Details -->
+
+      <!-- Tab: Product Summary — total quantity/amount per product, across the filtered invoices -->
+      <div id="ledger-tab-products" class="ledger-tab-panel" style="display:none;">
+        <div class="card no-print" style="padding:12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="font-size:12px; color:#6b7280;">Total quantity sold per product/grade — leave "Client Account" unset above for all customers combined, or choose one customer to see just their totals.</div>
+          <button onclick="exportProductSummaryCSV()" style="padding:5px 14px; font-size:12px; background:#10b981; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:600; height:30px;">📊 Export CSV</button>
+        </div>
+        <div class="card" style="padding:16px;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr style="border-top:2px solid #000; border-bottom:2px solid #000; background:#f1f5f9;">
+                <th style="padding:6px; text-align:left; border-right:1px solid #ddd;">Product / Grade</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Total Qty</th>
+                <th style="padding:6px; text-align:right; border-right:1px solid #ddd;">Invoices</th>
+                <th style="padding:6px; text-align:right;">Total Amount</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody">
+              <tr><td colspan="4" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- /Tab: Product Summary -->
     </div>
 
     <!-- ══ VIEW: INVOICE HISTORY ══ -->
@@ -4235,19 +4307,211 @@ table.list-table tbody td {
       }
     }
 
+    // ---------- Ledger tabs: Purchase Details / Product Summary ----------
+    let _ledgerActiveTab = 'statement';
+
+    function switchLedgerTab(tabName) {
+      _ledgerActiveTab = tabName;
+      ['statement', 'purchases', 'products'].forEach(t => {
+        const panel = document.getElementById('ledger-tab-' + t);
+        const btn = document.getElementById('ledger-tab-btn-' + t);
+        if (panel) panel.style.display = (t === tabName) ? '' : 'none';
+        if (btn) btn.className = (t === tabName) ? 'btn accent' : 'btn secondary';
+      });
+      refreshActiveLedgerTab();
+    }
+
+    // Shared by the customer/date filter inputs — re-renders whichever ledger tab is
+    // currently open instead of always the account statement.
+    function refreshActiveLedgerTab() {
+      const custName = document.getElementById('ledger-customer-select')?.value || '';
+      if (_ledgerActiveTab === 'purchases') loadPurchaseDetailsForCustomer(custName);
+      else if (_ledgerActiveTab === 'products') loadProductSummary(custName);
+      else loadLedgerForCustomer(custName);
+    }
+
+    // Flattens invoice rows (date, invoice#, grade, qty, rate, disc_pct) filtered by customer
+    // (required) and the shared date-range filter — same gross formula the invoice builder
+    // itself uses (recalcAll: qty * rate * (1 - disc_pct/100)), so amounts here match what was
+    // actually billed.
+    function getFilteredPurchaseRows(custName) {
+      const from = document.getElementById('ledger-date-from')?.value || '';
+      const to   = document.getElementById('ledger-date-to')?.value   || '';
+
+      let invoices = getStoredInvoices();
+      if (custName) invoices = invoices.filter(i => _nameMatch(i.customer?.name, custName));
+
+      const out = [];
+      invoices.forEach(inv => {
+        const date = inv.invoiceDate ? inv.invoiceDate.slice(0, 10) : '';
+        if (from && date < from) return;
+        if (to && date > to) return;
+        (inv.rows || []).forEach(r => {
+          const qty = Number(r.qty) || 0;
+          const rate = Number(r.rate) || 0;
+          const disc = Number(r.disc_pct) || 0;
+          out.push({
+            date, invoiceNo: inv.invoiceNo, customerName: inv.customer?.name || '',
+            grade: r.grade || '(unnamed)', qty, rate,
+            amount: qty * rate * (1 - disc / 100),
+          });
+        });
+      });
+      out.sort((a, b) => a.date.localeCompare(b.date));
+      return out;
+    }
+
+    function loadPurchaseDetailsForCustomer(custName) {
+      const tbody = document.getElementById('purchases-tbody');
+      const countEl = document.getElementById('purchases-summary-count');
+      const amountEl = document.getElementById('purchases-summary-amount');
+      if (!tbody) return;
+
+      if (!custName) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">Please select a client account to view purchase details.</td></tr>`;
+        if (countEl) countEl.textContent = '0';
+        if (amountEl) amountEl.textContent = '₹0.00';
+        return;
+      }
+
+      const rows = getFilteredPurchaseRows(custName);
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:20px; text-align:center; color:#555;">No purchases found for this customer in the selected range.</td></tr>`;
+        if (countEl) countEl.textContent = '0';
+        if (amountEl) amountEl.textContent = '₹0.00';
+        return;
+      }
+
+      let totalAmount = 0;
+      tbody.innerHTML = rows.map(r => {
+        totalAmount += r.amount;
+        return `
+          <tr style="border-bottom:1px solid #ddd;">
+            <td style="padding:6px; border-right:1px solid #ddd;">${escapeHtml(r.date)}</td>
+            <td style="padding:6px; border-right:1px solid #ddd; font-weight:600;">${escapeHtml(r.invoiceNo)}</td>
+            <td style="padding:6px; border-right:1px solid #ddd;">${escapeHtml(r.grade)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${formatNum(r.qty)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">₹${formatNum(r.rate)}</td>
+            <td style="padding:6px; text-align:right; font-weight:600;">₹${formatNum(r.amount)}</td>
+          </tr>
+        `;
+      }).join('') + `
+        <tr style="font-weight:800; border-top:2px solid #000; background:#f8fafc;">
+          <td colspan="5" style="padding:8px; text-align:right;">Total:</td>
+          <td style="padding:8px; text-align:right;">₹${formatNum(totalAmount)}</td>
+        </tr>
+      `;
+
+      if (countEl) countEl.textContent = String(rows.length);
+      if (amountEl) amountEl.textContent = '₹' + formatNum(totalAmount);
+    }
+
+    function exportPurchaseDetailsCSV() {
+      const custName = document.getElementById('ledger-customer-select')?.value || '';
+      if (!custName) { showToast('⚠️ Select a customer first', 'error'); return; }
+      const rows = getFilteredPurchaseRows(custName);
+      let csv = 'Date,Invoice No,Product/Grade,Qty,Rate,Amount\n';
+      rows.forEach(r => {
+        csv += `"${r.date}","${r.invoiceNo}","${String(r.grade).replace(/"/g, '""')}",${r.qty},${r.rate},${r.amount.toFixed(2)}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Purchase_Details_${custName}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Groups the same filtered rows by grade — custName is optional here (empty = all
+    // customers combined), unlike the Purchase Details tab which requires one.
+    function loadProductSummary(custName) {
+      const tbody = document.getElementById('products-tbody');
+      if (!tbody) return;
+
+      const rows = getFilteredPurchaseRows(custName);
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#555;">No purchases found for the current filters.</td></tr>`;
+        return;
+      }
+
+      const byGrade = new Map();
+      rows.forEach(r => {
+        const key = String(r.grade).trim() || '(unnamed)';
+        if (!byGrade.has(key)) byGrade.set(key, { grade: key, qty: 0, amount: 0, invoices: new Set() });
+        const g = byGrade.get(key);
+        g.qty += r.qty;
+        g.amount += r.amount;
+        g.invoices.add(r.invoiceNo);
+      });
+
+      const groups = Array.from(byGrade.values()).sort((a, b) => b.qty - a.qty);
+      let totalQty = 0, totalAmount = 0;
+      tbody.innerHTML = groups.map(g => {
+        totalQty += g.qty;
+        totalAmount += g.amount;
+        return `
+          <tr style="border-bottom:1px solid #ddd;">
+            <td style="padding:6px; border-right:1px solid #ddd; font-weight:600;">${escapeHtml(g.grade)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${formatNum(g.qty)}</td>
+            <td style="padding:6px; text-align:right; border-right:1px solid #ddd;">${g.invoices.size}</td>
+            <td style="padding:6px; text-align:right;">₹${formatNum(g.amount)}</td>
+          </tr>
+        `;
+      }).join('') + `
+        <tr style="font-weight:800; border-top:2px solid #000; background:#f8fafc;">
+          <td style="padding:8px; text-align:right;">Total:</td>
+          <td style="padding:8px; text-align:right;">${formatNum(totalQty)}</td>
+          <td></td>
+          <td style="padding:8px; text-align:right;">₹${formatNum(totalAmount)}</td>
+        </tr>
+      `;
+    }
+
+    function exportProductSummaryCSV() {
+      const custName = document.getElementById('ledger-customer-select')?.value || '';
+      const rows = getFilteredPurchaseRows(custName);
+      const byGrade = new Map();
+      rows.forEach(r => {
+        const key = String(r.grade).trim() || '(unnamed)';
+        if (!byGrade.has(key)) byGrade.set(key, { grade: key, qty: 0, amount: 0, invoices: new Set() });
+        const g = byGrade.get(key);
+        g.qty += r.qty;
+        g.amount += r.amount;
+        g.invoices.add(r.invoiceNo);
+      });
+      let csv = 'Product/Grade,Total Qty,Invoices,Total Amount\n';
+      Array.from(byGrade.values()).sort((a, b) => b.qty - a.qty).forEach(g => {
+        csv += `"${String(g.grade).replace(/"/g, '""')}",${g.qty},${g.invoices.size},${g.amount.toFixed(2)}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Product_Summary${custName ? '_' + custName : ''}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
     function printLedger() {
       const select = document.getElementById('ledger-customer-select');
       if(!select.value) {
         alert('Please select a customer account first!');
         return;
       }
-      
+
+      // This button always prints the Account Statement specifically — make sure that tab's
+      // content is actually the one visible (its panel has display:none if the user was
+      // looking at Purchase Details / Product Summary instead), otherwise the print output
+      // would come out blank despite the outer ledger panel itself becoming print-visible.
+      switchLedgerTab('statement');
+
       const ledgerPanel = document.getElementById('view-ledger');
       ledgerPanel.classList.add('active-print');
-      
-      window.print();
-      
-      ledgerPanel.classList.remove('active-print');
+
+      // A ledger can legitimately span multiple pages (it's a transaction list, not a
+      // fixed-size document like an invoice), so no page-fit here — just the same reliable
+      // beforeprint/afterprint timing as the other print paths.
+      runPrintJob(
+        function(){},
+        function(){ ledgerPanel.classList.remove('active-print'); }
+      );
     }
 
     // ======= INVOICE HISTORY VIEW =======
@@ -4331,7 +4595,7 @@ table.list-table tbody td {
           <td style="font-weight:700;color:var(--accent);">${inv.invoiceNo || ''}</td>
           <td class="hide-mobile" style="white-space:nowrap;">${inv.invoiceDate ? inv.invoiceDate.slice(0,10) : '-'}</td>
           <td style="font-weight:600;">${escapeHtml(inv.customer?.name || '-')}</td>
-          <td class="hide-mobile" style="color:var(--text-muted);">${inv.poNumber || '-'}</td>
+          <td class="hide-mobile" style="color:var(--text-muted);">${escapeHtml(inv.poNumber || '-')}</td>
           <td style="text-align:right;font-weight:700;">₹${formatNum(net)}</td>
           <td class="hide-mobile" style="text-align:right;color:#10b981;font-weight:600;">₹${formatNum(paid)}</td>
           <td style="text-align:right;font-weight:700;color:${due > 0 ? '#ef4444' : '#000'};">₹${formatNum(due)}</td>
@@ -5163,14 +5427,15 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       sheet.classList.add('active-print');
 
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() {
+      runPrintJob(
+        function(){ fitSheetToOnePage(sheet); },
+        function(){
+          resetSheetFit(sheet);
           panel.classList.remove('active-print');
           sheet.classList.remove('active-print');
           // NOTE: Sequence is NOT incremented here. Use "New Invoice" to start the next one.
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     async function newInvoice(){
@@ -5231,6 +5496,56 @@ table.list-table tbody td {
       catch(e){ console.warn('Skipping save:', e); }
     }
 
+    // Shrinks a .sheet element to fit within one A4 print page if its natural content height
+    // would otherwise overflow onto a second page — matches the @page rule below (A4 portrait,
+    // 8mm/10mm margins). A fixed CSS trim can't cover every invoice: row count, address length
+    // etc. all vary, so this measures the actual rendered height and only scales down exactly
+    // as much as needed. No-ops for anything that already fits.
+    //
+    // Must run while the browser's print stylesheet is actually active (font sizes, padding
+    // etc. in the @media print block are different from screen), which only reliably happens
+    // during the 'beforeprint' event — measuring any earlier (e.g. in a setTimeout just before
+    // calling window.print()) reads the screen-mode layout instead and over/under-shrinks.
+    function fitSheetToOnePage(sheetEl){
+      sheetEl.style.transform = '';
+      sheetEl.style.transformOrigin = '';
+
+      const MM_TO_PX = 96 / 25.4;
+      const pageContentHeightPx = (297 - 16) * MM_TO_PX; // A4 height minus 8mm top+bottom @page margin
+
+      const actualHeight = sheetEl.scrollHeight;
+      if (actualHeight > pageContentHeightPx) {
+        const scale = pageContentHeightPx / actualHeight;
+        sheetEl.style.transform = `scale(${scale})`;
+        sheetEl.style.transformOrigin = 'top left';
+      }
+    }
+
+    function resetSheetFit(sheetEl){
+      sheetEl.style.transform = '';
+      sheetEl.style.transformOrigin = '';
+    }
+
+    // Runs a print job through 'beforeprint'/'afterprint' rather than a fixed setTimeout after
+    // window.print(): the print dialog (especially a mobile "Save as PDF" share sheet) can
+    // stay open far longer than any fixed delay, and cleaning up — un-toggling active-print,
+    // clearing the fit-to-page transform — before it's actually done risks the same "looks
+    // broken on mobile" failure mode this whole print path was rewritten to get away from.
+    // `fit` does the page-fit measurement/scale (called while print CSS is active); `cleanup`
+    // reverses both that and the active-print class toggles once the print UI has closed.
+    function runPrintJob(fit, cleanup){
+      window.onbeforeprint = fit;
+      window.onafterprint = function(){
+        cleanup();
+        window.onbeforeprint = null;
+        window.onafterprint = null;
+      };
+      // Still need one beat before print() itself so the active-print class change (screen-mode
+      // visibility) has been painted — beforeprint/afterprint only fix the *measurement* and
+      // *cleanup* timing, not this initial "make the element printable at all" step.
+      setTimeout(function(){ window.print(); }, 100);
+    }
+
     function ensureCopyLabel(type){
       const sheet = document.getElementById('sheet');
       let badge = document.getElementById('copyLabel');
@@ -5255,19 +5570,21 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       sheet.classList.add('active-print');
 
-      setTimeout(function() {
-        window.print();
-        setTimeout(function() {
+      runPrintJob(
+        function(){ fitSheetToOnePage(sheet); },
+        function(){
+          resetSheetFit(sheet);
           if(badge) badge.style.display = 'none';
           panel.classList.remove('active-print');
           sheet.classList.remove('active-print');
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
-    function cloneSheetWithValuesAndLabel(type, targetDoc){
+    function cloneSheetWithValuesAndLabel(type){
       const sheet = document.getElementById('sheet');
       const clone = sheet.cloneNode(true);
+      clone.removeAttribute('id'); // avoid a duplicate #sheet while the clones are in the DOM
 
       const origFields  = sheet.querySelectorAll('input, textarea, select');
       const cloneFields = clone.querySelectorAll('input, textarea, select');
@@ -5286,7 +5603,7 @@ table.list-table tbody td {
 
       let badge = clone.querySelector('#copyLabel');
       if(!badge){
-        badge = clone.ownerDocument.createElement('div');
+        badge = document.createElement('div');
         badge.id = 'copyLabel';
         badge.className = 'copy-label';
         clone.appendChild(badge);
@@ -5294,51 +5611,39 @@ table.list-table tbody td {
       badge.textContent = type + ' Copy';
       badge.style.display = 'block';
 
-      return targetDoc.importNode(clone, true);
+      return clone;
     }
 
+    // Builds all three copies into #multiCopyPrint (in the main document) and prints via
+    // window.print() directly — not a hidden iframe. A hidden, zero-size iframe's
+    // contentWindow.print() is notoriously unreliable on mobile (iOS Safari and Android
+    // Chrome have both been seen rendering it as a blank page), and every other print path
+    // in this app already prints the main document directly, so this now matches that
+    // proven-working pattern instead of being the one exception.
     async function printAllCopies(){
       await trySave();
 
       const copies = ['Original','Duplicate','Transport'];
-      const frame = document.getElementById('printFrame');
-      const doc = frame.contentDocument || frame.contentWindow.document;
+      const container = document.getElementById('multiCopyPrint');
+      container.innerHTML = '';
 
-      // Collect all <style> blocks from the main document
-      const styleTags = Array.from(document.querySelectorAll('style'))
-        .map(s => '<style>' + s.textContent + '</style>')
-        .join('\n');
-
-      doc.open();
-      doc.write(
-        '<!DOCTYPE html><html><head>' +
-          '<meta charset="utf-8"><title>Invoice Copies</title>' +
-          styleTags +
-          '<style>.no-print{display:none!important} .sheet{margin:8mm auto!important; display:block!important; box-shadow:none!important;} .sidebar{display:none!important} .main-content{margin:0!important;padding:0!important;}</style>' +
-        '</head><body></body></html>'
-      );
-      doc.close();
-
-      const body = doc.body;
       copies.forEach((type, idx) => {
-        const importedSheet = cloneSheetWithValuesAndLabel(type, doc);
-        const wrapper = doc.createElement('div');
+        const clonedSheet = cloneSheetWithValuesAndLabel(type);
+        const wrapper = document.createElement('div');
         if (idx < copies.length - 1) wrapper.style.pageBreakAfter = 'always';
-        wrapper.appendChild(importedSheet);
-        body.appendChild(wrapper);
+        wrapper.appendChild(clonedSheet);
+        container.appendChild(wrapper);
       });
 
-      const imgs = Array.from(doc.images || []);
-      const waitImages = imgs.length
-        ? Promise.all(imgs.map(img => img.complete
-            ? Promise.resolve()
-            : new Promise(res => { img.onload = img.onerror = res; })))
-        : Promise.resolve();
+      container.classList.add('active-print');
 
-      waitImages.then(() => {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-      });
+      runPrintJob(
+        function(){ container.querySelectorAll('.sheet').forEach(fitSheetToOnePage); },
+        function(){
+          container.classList.remove('active-print');
+          container.innerHTML = '';
+        }
+      );
     }
 
     async function duplicateCurrentInvoice(){
@@ -5360,48 +5665,6 @@ table.list-table tbody td {
       }catch(e){
         showToast(e.message || 'Could not duplicate invoice.', 'error');
       }
-    }
-
-    function savePDF(){
-      const element = document.getElementById('sheet');
-      const invoiceNo = document.getElementById('invoiceNo')?.value || "invoice";
-
-      const opt = {
-        margin: 0.5,
-        filename: invoiceNo + '.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      };
-
-      html2pdf().set(opt).from(element).save();
-    }
-
-    async function saveSeparateCopiesPDF() {
-      await trySave();
-      const invoiceNo = document.getElementById('invoiceNo')?.value || "invoice";
-      const copies = ["Original", "Duplicate", "Transport"];
-
-      copies.forEach(type => {
-        const clone = cloneSheetWithValuesAndLabel(type, document);
-
-        const container = document.createElement('div');
-        container.style.width = '210mm';
-        container.style.height = '297mm';
-        container.style.boxSizing = 'border-box';
-        container.style.background = '#fff';
-        container.appendChild(clone);
-
-        const opt = {
-          margin: [0,0,0,0],
-          filename: `${invoiceNo}_${type}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        html2pdf().set(opt).from(container).save();
-      });
     }
 
     // ======= GATE PASS SYSTEM INTEGRATION =======
@@ -5697,13 +5960,13 @@ table.list-table tbody td {
       panel.classList.add('active-print');
       wrapper.classList.add('active-print');
 
-      setTimeout(function () {
-        window.print();
-        setTimeout(function () {
+      runPrintJob(
+        function(){},
+        function(){
           panel.classList.remove('active-print');
           wrapper.classList.remove('active-print');
-        }, 300);
-      }, 100);
+        }
+      );
     }
 
     // Helper functions
@@ -6178,9 +6441,15 @@ table.list-table tbody td {
       const sheet = document.getElementById('quote-sheet');
       if(panel) panel.classList.add('active-print');
       if(sheet) sheet.classList.add('active-print');
-      window.print();
-      if(panel) panel.classList.remove('active-print');
-      if(sheet) sheet.classList.remove('active-print');
+
+      runPrintJob(
+        function(){ if(sheet) fitSheetToOnePage(sheet); },
+        function(){
+          if(sheet) resetSheetFit(sheet);
+          if(panel) panel.classList.remove('active-print');
+          if(sheet) sheet.classList.remove('active-print');
+        }
+      );
     }
 
     async function convertQuoteToInvoice(){
@@ -6441,9 +6710,15 @@ table.list-table tbody td {
       const sheet = document.getElementById('po-sheet');
       if(panel) panel.classList.add('active-print');
       if(sheet) sheet.classList.add('active-print');
-      window.print();
-      if(panel) panel.classList.remove('active-print');
-      if(sheet) sheet.classList.remove('active-print');
+
+      runPrintJob(
+        function(){ if(sheet) fitSheetToOnePage(sheet); },
+        function(){
+          if(sheet) resetSheetFit(sheet);
+          if(panel) panel.classList.remove('active-print');
+          if(sheet) sheet.classList.remove('active-print');
+        }
+      );
     }
 
     function renderPOHistoryView(){
