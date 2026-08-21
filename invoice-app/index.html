@@ -3405,6 +3405,34 @@ table.list-table tbody td {
     function getStoredPOs()       { return _cache.purchaseOrders; }
 
     async function refreshInvoices()   { _cache.invoices = await Api.invoices.list(); if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
+
+    // Local-cache updates that avoid re-downloading and rejoining the ENTIRE invoice list
+    // (invoices + all their rows) after a single record changes. With the full recovered
+    // history this is 1,600+ invoices — refreshInvoices()'s full Api.invoices.list() round
+    // trip after every single save/print/delete was the actual cause of app-wide lag (not
+    // just print), since each of those actions only ever touches one invoice (or, for a
+    // payment, a handful via its allocations) and there's no reason to re-fetch everything
+    // else that didn't change. dashboardRefreshIfActive() is the same "only if visible" guard
+    // refreshInvoices() already used, just factored out since it's now called from more places.
+    function dashboardRefreshIfActive() { if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
+    function upsertInvoiceInCache(inv) {
+      const idx = _cache.invoices.findIndex(i => i.invoiceNo === inv.invoiceNo);
+      if (idx >= 0) _cache.invoices[idx] = inv; else _cache.invoices.push(inv);
+      dashboardRefreshIfActive();
+    }
+    function removeInvoiceFromCache(invoiceNo) {
+      _cache.invoices = _cache.invoices.filter(i => i.invoiceNo !== invoiceNo);
+      dashboardRefreshIfActive();
+    }
+    // Re-fetches just the given invoice numbers (e.g. the ones a payment was allocated to,
+    // whose paid_amount/status the server just changed) instead of the whole list.
+    async function refreshInvoicesByNo(invoiceNos) {
+      const unique = Array.from(new Set((invoiceNos || []).filter(Boolean)));
+      await Promise.all(unique.map(async no => {
+        try { upsertInvoiceInCache(await Api.invoices.get(no)); }
+        catch (e) { /* deleted or renumbered elsewhere in the meantime — safe to ignore */ }
+      }));
+    }
     async function refreshCustomers()  { _cache.customers = await Api.customers.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
     async function refreshPayments()   { _cache.payments = await Api.payments.list(); if (_isDashboardActive()) { updateDashboardMetrics(); renderDashboardCharts(); } }
     async function refreshGatePasses() { _cache.gatepasses = await Api.gatePasses.list(); if (_isDashboardActive()) updateDashboardMetrics(); }
@@ -4240,8 +4268,12 @@ table.list-table tbody td {
       }
 
       try{
-        await Api.payments.create({ customerName, linkedInvoice: linkedInvoice || null, date, amount, paymentMode, refNo, notes });
-        await Promise.all([refreshPayments(), refreshInvoices()]);
+        const saved = await Api.payments.create({ customerName, linkedInvoice: linkedInvoice || null, date, amount, paymentMode, refNo, notes });
+        // A payment can allocate across several invoices (customer's oldest unpaid first) —
+        // re-fetch just those specific ones (whose paid_amount/status the server just
+        // changed) instead of the whole 1,600+-invoice list; the payments list itself is
+        // small enough that refreshing it in full is still cheap.
+        await Promise.all([refreshPayments(), refreshInvoicesByNo((saved.appliedTo || []).map(a => a.invoiceNo))]);
 
         document.getElementById('pay-amount').value = '';
         document.getElementById('pay-ref').value = '';
@@ -4258,9 +4290,12 @@ table.list-table tbody td {
     // Reverses the payment's exact recorded allocation transactionally, server-side.
     async function deletePayment(id) {
       if(!confirm('Are you sure you want to delete this payment record? Ledger invoices balance will revert.')) return;
+      // Grab which invoices this payment touched before it's gone, so only those need
+      // re-fetching afterward instead of the whole invoice list.
+      const affected = (getStoredPayments().find(p => p.id === id)?.appliedTo || []).map(a => a.invoiceNo);
       try{
         await Api.payments.delete(id);
-        await Promise.all([refreshPayments(), refreshInvoices()]);
+        await Promise.all([refreshPayments(), refreshInvoicesByNo(affected)]);
         renderPaymentsHistoryTable();
         showToast('Payment record deleted & reversed', 'success');
       }catch(e){
@@ -4854,7 +4889,7 @@ table.list-table tbody td {
       if (!confirm(`Delete invoice #${no}? This cannot be undone.`)) return;
       try{
         await Api.invoices.delete(no);
-        await refreshInvoices();
+        removeInvoiceFromCache(no);
         renderHistoryView();
         showToast('Invoice #' + no + ' deleted', 'success');
       }catch(e){
@@ -5558,7 +5593,7 @@ table.list-table tbody td {
         const invNoField = document.getElementById('invoiceNo');
         if (invNoField) invNoField.value = saved.invoiceNo;
       }
-      await refreshInvoices();
+      upsertInvoiceInCache(saved);
 
       // Auto-register customer if not already in database
       const isNew = await autoSaveCustomerFromInvoice(saved);
@@ -5908,7 +5943,7 @@ table.list-table tbody td {
 
       try{
         const saved = await Api.invoices.create(dupInvoice); // server assigns the real number
-        await refreshInvoices();
+        upsertInvoiceInCache(saved);
         loadInvoice(saved);
         showToast('✓ Invoice duplicated as #' + saved.invoiceNo, 'success');
       }catch(e){
@@ -6264,8 +6299,15 @@ table.list-table tbody td {
       }
 
       try{
-        await Api.invoices.markPaid(invNo);
-        await Promise.all([refreshInvoices(), refreshPayments()]);
+        const result = await Api.invoices.markPaid(invNo);
+        // The response already carries exactly what changed (paidAmount/status) — patch the
+        // one cached invoice in place instead of re-fetching the whole list. Not a full
+        // upsertInvoiceInCache() since this response isn't a full invoice object (no
+        // customer/product/rows), which would otherwise blow away the rest of the cached record.
+        const cached = _cache.invoices.find(i => i.invoiceNo === result.invoiceNo);
+        if (cached) { cached.paidAmount = result.paidAmount; cached.status = result.status; }
+        dashboardRefreshIfActive();
+        await refreshPayments();
         showToast('✅ Invoice #' + invNo + ' marked as PAID', 'success');
       }catch(e){
         showToast(e.message || 'Could not mark invoice paid.', 'error');
